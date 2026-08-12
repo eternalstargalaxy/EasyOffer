@@ -1,0 +1,14 @@
+# 工具缓存
+.arts/
+.codeartsdoer/
+.merkle-snapshot.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# 系统
+.DS_Store
+Thumbs.db

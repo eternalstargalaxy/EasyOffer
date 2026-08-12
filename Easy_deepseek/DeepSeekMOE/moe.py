@@ -62,13 +62,16 @@ class Gate(nn.Module):
         # 计算每个输入对每个专家的分数
         # scores形状: [batch_size*seq_len, n_routed_experts=256]
         scores = Linear(x, self.weight)
+
+        # 保存原始分数用于后续路由权重
+        original_scores = scores.softmax(dim=-1, dtype=torch.float32) if self.score_func == "softmax" else scores.sigmoid()
+          
+        # 应用偏置(如果有)，形状保持不变: [batch_size*seq_len, n_routed_experts=256]
+        scores = scores + self.bias if self.bias is not None else scores
         
         # 根据评分函数转换分数，形状保持不变: [batch_size*seq_len, n_routed_experts=256]
         scores = scores.softmax(dim=-1, dtype=torch.float32) if self.score_func == "softmax" else scores.sigmoid()
-        original_scores = scores  # 保存原始分数用于后续路由权重
-        
-        # 应用偏置(如果有)，形状保持不变: [batch_size*seq_len, n_routed_experts=256]
-        scores = scores + self.bias if self.bias is not None else scores
+  
         
         if self.n_groups > 1:  # 处理分组路由
             # 将分数重塑为 [batch_size*seq_len, n_groups=8, experts_per_group=32]
