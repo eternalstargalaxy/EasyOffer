@@ -24,22 +24,36 @@ class AMPScaler:
     def __init__(self, init_scale=2.0**16, growth_factor=2.0, backoff_factor=0.5,
                  growth_interval=2000):
         self.scale = init_scale
-        # TODO: 维护 _growth_tracker
+        self.backoff_factor = backoff_factor
+        self.growth_factor = growth_factor
+        self.growth_interval = growth_interval
+        self._growth_tracker = 0   # 连续未溢出步数
 
     def scale_loss(self, loss: torch.Tensor) -> torch.Tensor:
         """返回 loss * scale（用于 backward）"""
-        raise NotImplementedError
+        return loss * self.scale
 
     def unscale_(self, grads):
         """原地 grad /= scale；若发现 inf/nan 标记溢出"""
-        raise NotImplementedError
+        for grad in grads:
+            grad /= self.scale
+        return any((torch.isnan(grad).any() or torch.isinf(grad).any()) for grad in grads)
 
     def step(self, optimizer, grads):
         """
         检测溢出 -> 跳过更新、scale *= backoff
         否则 unscale -> optimizer.step -> 连续未溢出计数达 growth_interval 则 scale *= growth
         """
-        raise NotImplementedError
+        if self.unscale_(grads):
+            self.scale *= self.backoff_factor
+            self._growth_tracker = 0
+        else:
+            self._growth_tracker += 1
+            optimizer.step()
+        
+        if self._growth_tracker >= self.growth_interval:
+            self.scale *= self.growth_factor
+            self._growth_tracker = 0
 
 
 def train_step(model: nn.Module, optimizer, scaler: AMPScaler,
@@ -49,4 +63,24 @@ def train_step(model: nn.Module, optimizer, scaler: AMPScaler,
     2. loss = scaler.scale_loss(criterion(...)); loss.backward()
     3. scaler.step(optimizer, grads)  # 内含 unscale + 更新 + scale 调整
     """
-    raise NotImplementedError
+    model.train()
+    x = x.to(device)
+    y = y.to(device)
+
+    with torch.autocast("cuda", dtype=dtype):
+        pred = model(x)
+        loss = criterion(pred, y)
+
+    if dtype == torch.bfloat16:
+        loss.backward()
+        optimizer.step()
+
+    else:
+        scaled_loss = scaler.scale_loss(loss)
+        scaled_loss.backward()
+
+        grads = [p.grad for p in model.parameters() if p.grad is not None]
+        scaler.step(optimizer, grads)
+        
+    optimizer.zero_grad()
+

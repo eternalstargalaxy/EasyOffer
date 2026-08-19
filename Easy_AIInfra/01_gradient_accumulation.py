@@ -34,17 +34,21 @@ def train_one_epoch(
    2. 每 accum_steps 个 micro-batch 才 optimizer.step() + optimizer.zero_grad()
    3. 末尾不足 accum_steps 时也要 step（兜底）
    """
-   # TODO: 遍历 dataloader，维护 micro_step 计数，按上述规则 step
-   criterion = nn.MSELoss()
-   for micro_step, (x, y) in enumerate(dataloader):
-   pred = model(x.to(device))
-   raw_loss = criterion(pred, y)
-   scaled_loss = raw_loss / accum_steps
-   scaled_loss.backward()
-   if (micro_step + 1) % accum_steps == 0 or micro_step == len(dataloader) - 1:
-      optimizer.step()
-      optimizer.zero_grad()
-   return 
+    # TODO: 遍历 dataloader，维护 micro_step 计数，按上述规则 step
+    model.train()
+    criterion = nn.MSELoss()
+    for micro_step, (x, y) in enumerate(dataloader):
+        x = x.to(device)
+        y = y.to(device)
+        pred = model(x)
+        raw_loss = criterion(pred, y)
+        scaled_loss = raw_loss / accum_steps
+        scaled_loss.backward()
+        if (micro_step + 1) % accum_steps == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+    optimizer.step()
+    optimizer.zero_grad()
     
 
 
@@ -54,7 +58,6 @@ def equivalence_check():
    对比：accum_steps=K 的小 batch 累积  vs  一次拼成大 batch
    断言两者单步更新后的权重在 fp 误差内一致。
    """
-
     torch.manual_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

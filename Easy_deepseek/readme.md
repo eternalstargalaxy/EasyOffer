@@ -1,4 +1,30 @@
-# 混合专家模型(MoE)路由机制详细流程
+# Easy_deepseek — DeepSeek 模型实现与解析
+
+## 文件索引
+
+| 文件 | 内容 |
+|------|------|
+| `main.py` | 入口：模型构建与前向示例 |
+| `config.py` | 模型配置（层数/维度/专家数等） |
+| `transformer.py` | Transformer 主体 |
+| `transformer_block.py` | 单层 Transformer Block |
+| `attention.py` | MLA 注意力 |
+| `feedforward.py` | FFN / MoE 前馈 |
+| `moe.py` | MoE 路由（精简版） |
+| `moe_detailed.py` | MoE 路由（详细版，含分组路由） |
+| `rotary_embeddings.py` | RoPE 旋转位置编码 |
+| `linear_layers.py` | 线性层（含量化） |
+| `quantization.py` | 量化实现 |
+| `kernel.py` | 自定义 kernel |
+| `distributed.py` | 分布式通信 |
+| `moe_dataflow.md` | MoE 数据流向详解 |
+| `torch_functional.md` | PyTorch 函数式 API 参考 |
+
+---
+
+## MoE 路由机制详细流程
+
+
 
 **参数设置:** dim=16, n_experts=32, n_groups=8, topk_groups=2, topk=2
 

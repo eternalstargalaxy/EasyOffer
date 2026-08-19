@@ -12,28 +12,28 @@
 
 ```
 EasyOffer/
-├── Easy_Pytorch/          # PyTorch 基础手撕（softmax / 交叉熵 / KL / 反向传播 / SGD）
-├── Easy_Attention/        # 注意力与模型组件（MHA/GQA/MLA/RoPE/RMSNorm/MLP/LoRA/激活函数...）
-├── Easy_Generator/        # 解码采样（贪心 / TopK / TopP / 温度）
+├── Easy_Pytorch/          # PyTorch 基础手撕（Softmax / CrossEntropy / KLDivergence / Backpropagation / SGD）
+├── Easy_Attention/        # 注意力与模型组件（MHA/GQA_MLA/RoPE/RMSNorm/MLP/FFN/LoRA/SelfAttention/ActivationFunction）
+├── Easy_Generator/        # 解码采样（GreedyDecoding / TopK / TopP / TemperatureSampling）
 ├── Easy_AIInfra/          # AI Infra 训练/推理优化手撕（DDP/ZeRO/TP/PP/FSDP/KVCache/FlashAttn...）
 ├── Easy_deepseek/         # DeepSeek 模型完整实现与解析（MoE/MLA/MTP...）
-├── Easy_RL/               # 强化学习对齐（DPO / PPO / GRPO）
-├── LLM大厂面经合集/        # 各厂 LLM 岗面经（字节/阿里/腾讯/百度/快手/小米/旷视/蚂蚁/讯飞）
-├── 大厂常见思维题/         # 思维题（小红书/字节）
-├── make your hands dirty.ipynb
+├── Easy_RL/               # 强化学习对齐（REINFORCE / PPO / GRPO / GSPO / DPO / SimPO）
+├── LLM大厂面经合集/        # 各厂 LLM 岗面经（字节/阿里/腾讯/百度/快手/小米/旷视/蚂蚁/讯飞 + AIInfra专题）
+├── 大厂常见思维题/         # 思维题（小红书/字节 + AIInfra专题）
+├── hands_dirty.ipynb      # 综合手撕题合集
 └── README.md
 ```
 
 ## ✨ 各模块说明
 
 ### 📌 Easy_Pytorch — 基础手撕
-softmax（朴素/safe/online）、交叉熵（log-sum-exp 稳定实现）、KL 散度、反向传播、SGD。
+Softmax（朴素/safe/online）、交叉熵（log-sum-exp 稳定实现）、KL 散度、反向传播、SGD。每个文件末尾含测试验证 cell。
 
 ### 📌 Easy_Attention — 注意力与组件
-激活函数、自注意力、MHA(含 KV Cache)、GQA & MLA、RoPE、RMSNorm、MLP(SwiGLU)、FFN(PreNorm+GLU)、LoRA。
+激活函数、自注意力（基础版）、MHA(含 KV Cache，工程版)、GQA & MLA、RoPE、RMSNorm、MLP(SwiGLU)、FFN(PreNorm+GLU)、LoRA。每个文件末尾含测试验证 cell。
 
 ### 📌 Easy_Generator — 解码采样
-贪心搜索、Top-K、Top-P(nucleus)、温度采样，含组合顺序说明。
+贪心搜索、Top-K、Top-P(nucleus)、温度采样，含组合顺序说明。每个文件末尾含测试验证 cell。
 
 ### 📌 Easy_AIInfra — 训练/推理优化（20 题）
 训练：梯度累积 / AMP / DDP+RingAllReduce / ZeRO / 张量并行 / 1F1B 流水并行 / 激活重计算 / FSDP
@@ -44,10 +44,10 @@ softmax（朴素/safe/online）、交叉熵（log-sum-exp 稳定实现）、KL �
 模型核心结构完整实现 + DeepSeekMoE / MLA / MTP 等关键模块详细解析。
 
 ### 📌 Easy_RL — 对齐算法
-DPO（直接偏好优化）、PPO（RLHF 经典）、GRPO（组相对策略优化），均含原理概述。
+REINFORCE（基础策略梯度）、PPO（RLHF 经典）、GRPO（组相对，省 critic）、GSPO（序列级重要性，Qwen3）、DPO（绕过 RM）、SimPO（去 reference），均含题目背景 + 原理 + 考察点 + 测试验证。
 
 ### 📌 面经与思维题
-`LLM大厂面经合集/` 按公司分目录；`大厂常见思维题/` 收录思维题。
+`LLM大厂面经合集/` 按公司平铺文件（公司前缀_轮次），含 AI Infra 专题面经；`大厂常见思维题/` 收录思维题，含 AI Infra 方向计算题。
 
 ---
 
