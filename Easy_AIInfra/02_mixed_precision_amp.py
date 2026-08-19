@@ -8,7 +8,7 @@ fp16 尾数位少、动态范围窄，小梯度反向时易下溢为 0。做法�
 bf16 动态范围与 fp32 同（指数位相同），不需要 loss scaling，但精度更低。
 
 【输入/输出】
-- 输入：model(fp32 master), optimizer, dataloader, dtype∈{fp16,bf16}
+- 输入：model(fp32 master), optimizer, scaler, criterion, x, y, dtype∈{fp16,bf16}, device
 - 输出：每步前向用 fp16 权重、更新 fp32 master；scale 动态调整
 
 【考察点】
@@ -50,14 +50,16 @@ class AMPScaler:
         else:
             self._growth_tracker += 1
             optimizer.step()
-        
+
         if self._growth_tracker >= self.growth_interval:
             self.scale *= self.growth_factor
             self._growth_tracker = 0
 
 
 def train_step(model: nn.Module, optimizer, scaler: AMPScaler,
-               x: torch.Tensor, y: torch.Tensor, dtype: torch.dtype):
+               criterion: nn.Module,   # 损失函数，由调用者传入
+               x: torch.Tensor, y: torch.Tensor,
+               dtype: torch.dtype, device: torch.device):
     """
     1. 用 fp16/bf16 copy master 权重做前向
     2. loss = scaler.scale_loss(criterion(...)); loss.backward()
@@ -81,6 +83,5 @@ def train_step(model: nn.Module, optimizer, scaler: AMPScaler,
 
         grads = [p.grad for p in model.parameters() if p.grad is not None]
         scaler.step(optimizer, grads)
-        
-    optimizer.zero_grad()
 
+    optimizer.zero_grad()

@@ -8,7 +8,7 @@
 (2) zero_grad 只在真实 step 后做一次；(3) 与 DDP/AMP 组合时，梯度同步/unscale 只在真实 step 的那个 micro-batch 触发，否则重复通信、重复缩放。
 
 【输入/输出】
-- 输入：model, optimizer, dataloader（产出 (x, y) micro-batch）, accumulation_steps
+- 输入：model, optimizer, dataloader（产出 (x, y) micro-batch）, criterion, accumulation_steps, device
 - 输出：训练若干步，每个 accumulation_steps 个 micro-batch 完成一次权重更新
 
 【考察点】
@@ -16,6 +16,7 @@
 - 与 DDP（何时同步梯度）、AMP（何时 unscale）的边界
 - 最后一个不满 accumulation_steps 的 batch 处理
 """
+import copy
 import torch
 import torch.nn as nn
 
@@ -24,19 +25,18 @@ def train_one_epoch(
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
     dataloader,            # yields (x: Tensor[B,...], y: Tensor[B,...])
+    criterion: nn.Module,  # 损失函数，由调用者传入
     accum_steps: int,
     device: torch.device,
 ):
-   """
-   用梯度累积完成一个 epoch。
-   要求：
-   1. 每个 micro-batch: loss = criterion(model(x), y) / accum_steps; loss.backward()
-   2. 每 accum_steps 个 micro-batch 才 optimizer.step() + optimizer.zero_grad()
-   3. 末尾不足 accum_steps 时也要 step（兜底）
-   """
-    # TODO: 遍历 dataloader，维护 micro_step 计数，按上述规则 step
+    """
+    用梯度累积完成一个 epoch。
+    要求：
+    1. 每个 micro-batch: loss = criterion(model(x), y) / accum_steps; loss.backward()
+    2. 每 accum_steps 个 micro-batch 才 optimizer.step() + optimizer.zero_grad()
+    3. 末尾不足 accum_steps 时也要 step（兜底）
+    """
     model.train()
-    criterion = nn.MSELoss()
     for micro_step, (x, y) in enumerate(dataloader):
         x = x.to(device)
         y = y.to(device)
@@ -49,22 +49,21 @@ def train_one_epoch(
             optimizer.zero_grad()
     optimizer.step()
     optimizer.zero_grad()
-    
 
 
 # ===== 等价性自检（可选）=====
 def equivalence_check():
-   """
-   对比：accum_steps=K 的小 batch 累积  vs  一次拼成大 batch
-   断言两者单步更新后的权重在 fp 误差内一致。
-   """
+    """
+    对比：accum_steps=K 的小 batch 累积  vs  一次拼成大 batch
+    断言两者单步更新后的权重在 fp 误差内一致。
+    """
     torch.manual_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    batch_size = 4      
-    accum_steps = 4    
-    input_dim = 10      
-    output_dim = 1      
+    batch_size = 4
+    accum_steps = 4
+    input_dim = 10
+    output_dim = 1
 
     x_list = [torch.randn(batch_size, input_dim, device=device) for _ in range(accum_steps)]
     y_list = [torch.randn(batch_size, output_dim, device=device) for _ in range(accum_steps)]
@@ -72,7 +71,7 @@ def equivalence_check():
     x_big = torch.cat(x_list, dim=0)
     y_big = torch.cat(y_list, dim=0)
 
-   # 注意要用 eval 模式，避免 BatchNorm / Dropout 随机性干扰
+    # 注意要用 eval 模式，避免 BatchNorm / Dropout 随机性干扰
     model_a = nn.Sequential(
         nn.Linear(input_dim, 32),
         nn.ReLU(),
@@ -104,11 +103,9 @@ def equivalence_check():
         max_diff = max(max_diff, diff)
 
     print(f"两模型权重的最大绝对误差: {max_diff:.8f}")
+    assert max_diff < 1e-5, f"梯度累积不等价！误差 {max_diff} 过大"
+    print("✅ 等价性验证通过")
 
-   
 
-
-
-   
-   
-   
+if __name__ == "__main__":
+    equivalence_check()
