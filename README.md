@@ -15,7 +15,7 @@ EasyOffer/
 ├── Easy_Pytorch/          # PyTorch 基础手撕（Softmax / CrossEntropy / KLDivergence / Backpropagation / SGD）
 ├── Easy_Attention/        # 注意力与模型组件（MHA/GQA_MLA/RoPE/RMSNorm/MLP/FFN/LoRA/SelfAttention/ActivationFunction）
 ├── Easy_Generator/        # 解码采样（GreedyDecoding / TopK / TopP / TemperatureSampling）
-├── Easy_AIInfra/          # AI Infra 训练/推理优化手撕（DDP/ZeRO/TP/PP/FSDP/KVCache/FlashAttn...）
+├── Easy_AIInfra/          # AI Infra 训练/推理优化（45题，分6个子目录：training/inference/quant/sparsity/ssm/advanced）
 ├── Easy_deepseek/         # DeepSeek 模型完整实现与解析（MoE/MLA/MTP...）
 ├── Easy_RL/               # 强化学习对齐（REINFORCE / PPO / GRPO / GSPO / DPO / SimPO）
 ├── AIInfra面经/            # AIInfra 面试面经（字节/阿里/腾讯/百度/快手/小米/旷视/蚂蚁/讯飞 + AIInfra专题）
@@ -35,12 +35,9 @@ Softmax（朴素/safe/online）、交叉熵（log-sum-exp 稳定实现）、KL �
 ### 📌 Easy_Generator — 解码采样
 贪心搜索、Top-K、Top-P(nucleus)、温度采样，含组合顺序说明。每个文件末尾含测试验证 cell。
 
-### 📌 Easy_AIInfra — 训练/推理优化（40 题）
-训练：梯度累积/AMP/DDP/ZeRO/TP/PP/FSDP/HybridShard/CPUOffload/ZeRO++/SP/InterleavedPP/FusedKernels
-推理：KV Cache/PagedAttn/FlashAttn/ContBatching/vLLM调度/投机/Eagle/Medusa/自投机/RingAttn
-SSM：Mamba(S6)/Mamba-2/混合Jamba | 线性Attention：Performer/RetNet/GLA
-量化：W8A16/AWQ/GPTQ/SmoothQuant/Per-channel/Per-token | 稀疏：2:4/Wanda/SparseGPT
-进阶：MoE all2all/多LoRA/DistServe/动态Rollout
+### 📌 Easy_AIInfra — 训练/推理优化（45 题）
+分 6 个子目录：training(13题)/inference(10题)/quantization(4题)/sparsity(2题)/ssm_attention(5题)/advanced(11题)
+覆盖 DDP/ZeRO/TP/PP/FSDP/Hybrid/SP/FusedKernels，KVCache/PagedAttn/FlashAttn/vLLM/投机/Mamba/线性Attention/RingAttn/量化/稀疏/MTP/MCTS 等
 
 ### 📌 Easy_deepseek — DeepSeek 实现
 模型核心结构完整实现 + DeepSeekMoE / MLA / MTP 等关键模块详细解析。
