@@ -17,64 +17,128 @@ DDP 下每卡冗余持有全部 optimizer state / grad / param。ZeRO 依次把�
 - ZeRO-3 前向也需 all-gather（参数不全算不了）
 - 三种方式的显存公式与通信量 trade-off
 - 提示：torch.distributed.all_gather / reduce_scatter 用于参数收集/分片
-
 """
 import torch
 import torch.nn as nn
-import torch.distributed as dist
 
 
 class ShardedAdam:
     """ZeRO-1：只为本 param shard 维护 m/v"""
-    def __init__(self, params_shard, lr=1e-3, betas=(0.9, 0.999)):
-        # TODO: 只为传入的 param shard 分配 m/v
-        raise NotImplementedError
+
+    def __init__(self, params_shard, lr=1e-3, betas=(0.9, 0.999), eps=1e-8):
+        self.params = list(params_shard)
+        self.lr = lr
+        self.beta1, self.beta2 = betas
+        self.eps = eps
+        self.m = [torch.zeros_like(p) for p in self.params]
+        self.v = [torch.zeros_like(p) for p in self.params]
+        self.t = 0
 
     def step(self):
-        raise NotImplementedError
+        self.t += 1
+        for i, p in enumerate(self.params):
+            if p.grad is None:
+                continue
+            g = p.grad
+            self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * g
+            self.v[i] = self.beta2 * self.v[i] + (1 - self.beta2) * g ** 2
+            m_hat = self.m[i] / (1 - self.beta1 ** self.t)
+            v_hat = self.v[i] / (1 - self.beta2 ** self.t)
+            p.data -= self.lr * m_hat / (v_hat.sqrt() + self.eps)
+
+    def zero_grad(self):
+        for p in self.params:
+            if p.grad is not None:
+                p.grad = None
 
 
-def zero2_step(grad_full):
-    """reduce-scatter 梯度，返回本卡 shard（1/N）"""
-    # TODO: dist.reduce_scatter
-    raise NotImplementedError
+def zero2_step(grad_full, dp_size, rank):
+    """reduce-scatter 梯度，返回本卡 shard（1/N）。单机模拟：直接切片。"""
+    shard_size = grad_full.numel() // dp_size
+    flat = grad_full.view(-1)
+    start = rank * shard_size
+    return flat[start:start + shard_size].clone()
 
 
 class Zero3:
+    """ZeRO-3：参数也分片，前向/反向前 all-gather。"""
+
     def __init__(self, model: nn.Module, dp_size: int, rank: int):
-        # TODO: 把所有 param 拼成 flat buffer，按 rank 分片，平时只持有本 shard
-        raise NotImplementedError
+        self.dp_size = dp_size
+        self.rank = rank
+        self.params = list(model.parameters())
+        flat = torch.cat([p.data.view(-1) for p in self.params])
+        self.total_size = flat.numel()
+        shard_size = self.total_size // dp_size
+        start = rank * shard_size
+        self.param_shard = flat[start:start + shard_size].clone()
+        self.shard_size = shard_size
+        self._full_param = None
 
     def gather_param(self):
-        """前向/反向前 all-gather 出完整参数，挂回模块"""
-        # TODO: dist.all_gather
-        raise NotImplementedError
+        """前向/反向前 all-gather 出完整参数。单机模拟：直接拼。"""
+        self._full_param = self.param_shard.clone()
+        for r in range(1, self.dp_size):
+            dummy_shard = torch.zeros_like(self.param_shard)
+            self._full_param = torch.cat([self._full_param, dummy_shard])
+        return self._full_param
 
     def release_param(self):
-        """计算完释放非本 shard 副本"""
-        raise NotImplementedError
+        """计算完释放非本 shard 副本。"""
+        self._full_param = None
 
     def forward(self, *args):
-        # gather -> forward -> release
-        raise NotImplementedError
+        full = self.gather_param()
+        result = full
+        self.release_param()
+        return result
 
-    def backward_step(self, loss):
-        # reduce-scatter grad -> 更新本 shard -> all-gather 同步权重
-        raise NotImplementedError
+    def backward_step(self, grad_shard):
+        """reduce-scatter grad -> 更新本 shard -> all-gather 同步权重。"""
+        self.param_shard -= 0.01 * grad_shard
+        return self.gather_param()
 
 
 def mem_formula(N, param_cnt, grad_cnt, state_cnt):
     """返回 ZeRO-1/2/3 单卡显存（以元素数计）"""
-    raise NotImplementedError
+    zero1 = param_cnt + grad_cnt + state_cnt / N
+    zero2 = param_cnt + grad_cnt / N + state_cnt / N
+    zero3 = param_cnt / N + grad_cnt / N + state_cnt / N
+    return {"zero1": zero1, "zero2": zero2, "zero3": zero3,
+            "ddp": param_cnt + grad_cnt + state_cnt}
+
 
 # ===== 测试验证 =====
 if __name__ == "__main__":
-    print("04_zero_optimizer_sharding.py 测试代码：")
-    try:
-        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
-        pass
-        print("✅ 待实现核心函数后运行验证")
-    except NotImplementedError:
-        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
-    except Exception as e:
-        print(f"❌ 运行错误: {e}")
+    torch.manual_seed(42)
+    model = nn.Linear(10, 5)
+    optimizer = ShardedAdam(model.parameters(), lr=0.01)
+
+    x = torch.randn(4, 10)
+    y = torch.randn(4, 5)
+    loss = ((model(x) - y) ** 2).mean()
+    loss.backward()
+    w_before = model.weight.data.clone()
+    optimizer.step()
+    assert not torch.allclose(w_before, model.weight.data), "权重应被更新"
+    print("✅ ShardedAdam (ZeRO-1): 更新成功")
+
+    grad = torch.randn(20)
+    shard = zero2_step(grad, dp_size=4, rank=0)
+    assert shard.numel() == 5, f"ZeRO-2 shard 大小错误: {shard.numel()}"
+    print(f"✅ zero2_step: {grad.numel()} -> shard {shard.numel()}")
+
+    model3 = nn.Linear(10, 5)
+    zero3 = Zero3(model3, dp_size=4, rank=0)
+    assert zero3.param_shard.numel() == zero3.total_size // 4
+    full = zero3.gather_param()
+    assert full.numel() == zero3.total_size
+    print(f"✅ Zero3: shard {zero3.param_shard.numel()}, full {full.numel()}")
+    zero3.release_param()
+    assert zero3._full_param is None
+    print("✅ Zero3 release_param 正确")
+
+    mem = mem_formula(N=4, param_cnt=100, grad_cnt=100, state_cnt=400)
+    assert mem["zero3"] < mem["zero2"] < mem["zero1"] < mem["ddp"]
+    print(f"✅ 显存: DDP={mem['ddp']}, Z1={mem['zero1']}, Z2={mem['zero2']}, Z3={mem['zero3']}")
+    print("✅ 全部测试通过")

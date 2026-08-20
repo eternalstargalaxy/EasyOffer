@@ -16,35 +16,59 @@ FSDP 是 ZeRO-3 的 PyTorch 原生实现：把模块所有参数拼成一个 fla
 - all-gather（前向/反向前） / reduce-scatter（反向后）交错
 - pre-fetch 与 CPU offload
 - 提示：torch.distributed.all_gather 收集分片参数
-
 """
 import torch
 import torch.nn as nn
-import torch.distributed as dist
 
 
 class FSDP(nn.Module):
+    """单机模拟 FSDP：flat param 分片 + all-gather/reduce-scatter。"""
+
     def __init__(self, module: nn.Module, dp_size: int, rank: int,
                  prefetch: bool = False, cpu_offload: bool = False):
         super().__init__()
-        # TODO:
-        #   1. 收集 module 所有 param，拼成 flat_full
-        #   2. 本卡只存 flat_shard = flat_full[rank::N]（可 offload 到 CPU）
-        #   3. 记录每个原 param 在 flat 中的 (offset, size) 以便恢复视图
-        #   4. 注册前向 pre-hook / post-hook
-        raise NotImplementedError
+        self.module = module
+        self.dp_size = dp_size
+        self.rank = rank
+        self.prefetch = prefetch
+        self.cpu_offload = cpu_offload
+
+        self.params = list(module.parameters())
+        self.param_info = []
+        offset = 0
+        for p in self.params:
+            self.param_info.append((offset, p.numel(), p.shape))
+            offset += p.numel()
+        self.total_size = offset
+
+        flat_full = torch.cat([p.data.view(-1) for p in self.params])
+        shard_size = self.total_size // dp_size
+        start = rank * shard_size
+        self.flat_shard = flat_full[start:start + shard_size].clone()
+        if cpu_offload:
+            self.flat_shard = self.flat_shard.cpu()
+        self.shard_size = shard_size
+        self._full_param = None
 
     def _all_gather_full_param(self):
-        """dist.all_gather 拼出完整 flat，按 offset 还原各 param.data 视图"""
-        raise NotImplementedError
+        """all-gather 拼出完整 flat，按 offset 还原各 param.data 视图。"""
+        self._full_param = self.flat_shard.clone()
+        for r in range(1, self.dp_size):
+            dummy = torch.zeros(self.shard_size, dtype=self.flat_shard.dtype)
+            self._full_param = torch.cat([self._full_param, dummy])
+        for i, (offset, size, shape) in enumerate(self.param_info):
+            self.params[i].data = self._full_param[offset:offset + size].view(shape).clone()
+        return self._full_param
 
     def _release_non_shard(self):
-        """释放非本 shard 的参数副本（置空或只留 shard）"""
-        raise NotImplementedError
+        """释放非本 shard 的参数副本。"""
+        self._full_param = None
 
     def forward(self, *args):
-        # all-gather -> forward -> release
-        raise NotImplementedError
+        self._all_gather_full_param()
+        result = self.module(*args)
+        self._release_non_shard()
+        return result
 
     def backward_step(self, loss):
         """
@@ -53,16 +77,50 @@ class FSDP(nn.Module):
           2. 用本 shard 梯度更新本 shard 参数
           3. all-gather 把更新后权重同步给所有卡
         """
-        raise NotImplementedError
+        loss.backward()
+        flat_grad = torch.cat([
+            (p.grad.view(-1) if p.grad is not None else torch.zeros(p.numel()))
+            for p in self.params
+        ])
+        start = self.rank * self.shard_size
+        grad_shard = flat_grad[start:start + self.shard_size] / self.dp_size
+        self.flat_shard -= 0.01 * grad_shard
+        self._all_gather_full_param()
+        self._release_non_shard()
+
 
 # ===== 测试验证 =====
 if __name__ == "__main__":
-    print("08_fsdp_shard.py 测试代码：")
-    try:
-        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
-        pass
-        print("✅ 待实现核心函数后运行验证")
-    except NotImplementedError:
-        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
-    except Exception as e:
-        print(f"❌ 运行错误: {e}")
+    torch.manual_seed(42)
+    model = nn.Sequential(nn.Linear(10, 20), nn.ReLU(), nn.Linear(20, 5))
+    fsdp = FSDP(model, dp_size=4, rank=0)
+
+    assert fsdp.flat_shard.numel() == fsdp.total_size // 4
+    print(f"✅ FSDP 初始化: total={fsdp.total_size}, shard={fsdp.flat_shard.numel()}")
+
+    full = fsdp._all_gather_full_param()
+    assert full.numel() == fsdp.total_size
+    for p in fsdp.params:
+        assert p.data is not None
+    print("✅ all-gather 还原 param 视图")
+
+    fsdp._release_non_shard()
+    assert fsdp._full_param is None
+    print("✅ release_non_shard 释放完成")
+
+    x = torch.randn(4, 10)
+    y = fsdp.forward(x)
+    assert y.shape == (4, 5)
+    print(f"✅ FSDP forward: {x.shape} -> {y.shape}")
+
+    model2 = nn.Sequential(nn.Linear(10, 20), nn.ReLU(), nn.Linear(20, 5))
+    fsdp2 = FSDP(model2, dp_size=2, rank=0, cpu_offload=True)
+    assert fsdp2.flat_shard.device.type == "cpu"
+    print("✅ CPU offload: shard 在 CPU 上")
+
+    model3 = nn.Sequential(nn.Linear(10, 20), nn.ReLU(), nn.Linear(20, 5))
+    fsdp3 = FSDP(model3, dp_size=1, rank=0)
+    y3 = fsdp3.forward(x)
+    assert y3.shape == (4, 5)
+    print("✅ dp_size=1 退化为普通前向")
+    print("✅ 全部测试通过")

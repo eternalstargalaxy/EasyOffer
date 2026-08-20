@@ -15,58 +15,58 @@ bf16 动态范围与 fp32 同（指数位相同），不需要 loss scaling，�
 - fp16 vs bf16 差异（为何 bf16 不需 scaling）
 - inf/nan 检测与"跳过更新"的正确性
 - unscale 时机 vs 梯度裁剪顺序（先 unscale 再 clip 再 step）
-- 提示：torch.autocast(device_type="cuda", dtype=...) 用于自动混合精度前向；梯度裁剪 torch.nn.utils.clip_grad_norm_ 需在 unscale 之后 step 之前调用
+- 提示：torch.autocast(device_type="cuda", dtype=...) 用于自动混合精度前向
 """
 import torch
 import torch.nn as nn
 
 
 class AMPScaler:
+    """动态 loss scaling，模拟 torch.cuda.amp.GradScaler。"""
+
     def __init__(self, init_scale=2.0**16, growth_factor=2.0, backoff_factor=0.5,
                  growth_interval=2000):
         self.scale = init_scale
         self.backoff_factor = backoff_factor
         self.growth_factor = growth_factor
         self.growth_interval = growth_interval
-        self._growth_tracker = 0   # 连续未溢出步数
+        self._growth_tracker = 0
 
     def scale_loss(self, loss: torch.Tensor) -> torch.Tensor:
-        """返回 loss * scale（用于 backward）"""
         return loss * self.scale
 
     def unscale_(self, grads):
-        """原地 grad /= scale；若发现 inf/nan 标记溢出"""
+        """原地 grad /= scale；若发现 inf/nan 返回 True（溢出）。"""
+        overflow = False
         for grad in grads:
-            grad /= self.scale
-        return any((torch.isnan(grad).any() or torch.isinf(grad).any()) for grad in grads)
+            if grad is None:
+                continue
+            grad.div_(self.scale)
+            if torch.isnan(grad).any() or torch.isinf(grad).any():
+                overflow = True
+        return overflow
 
     def step(self, optimizer, grads):
-        """
-        检测溢出 -> 跳过更新、scale *= backoff
-        否则 unscale -> optimizer.step -> 连续未溢出计数达 growth_interval 则 scale *= growth
-        """
+        """检测溢出 -> 跳过更新、scale *= backoff；否则更新 + 可能增长 scale。"""
         if self.unscale_(grads):
             self.scale *= self.backoff_factor
             self._growth_tracker = 0
+            return False
         else:
             self._growth_tracker += 1
             optimizer.step()
-
-        if self._growth_tracker >= self.growth_interval:
-            self.scale *= self.growth_factor
-            self._growth_tracker = 0
+            if self._growth_tracker >= self.growth_interval:
+                self.scale *= self.growth_factor
+                self._growth_tracker = 0
+            return True
 
 
 def train_step(model: nn.Module, optimizer, scaler: AMPScaler,
                x: torch.Tensor, y: torch.Tensor,
-               criterion: nn.Module = None,   # 损失函数，默认 MSELoss
+               criterion: nn.Module = None,
                dtype: torch.dtype = torch.float16,
                device: torch.device = None):
-    """
-    1. 用 fp16/bf16 copy master 权重做前向
-    2. loss = scaler.scale_loss(criterion(...)); loss.backward()
-    3. scaler.step(optimizer, grads)  # 内含 unscale + 更新 + scale 调整
-    """
+    """AMP 训练一步：前向 -> scaled loss -> backward -> unscale -> step。"""
     model.train()
     if criterion is None:
         criterion = nn.MSELoss()
@@ -75,54 +75,70 @@ def train_step(model: nn.Module, optimizer, scaler: AMPScaler,
     x = x.to(device)
     y = y.to(device)
 
-    with torch.autocast("cuda", dtype=dtype):
+    use_autocast = device.type == "cuda"
+    if use_autocast:
+        with torch.autocast("cuda", dtype=dtype):
+            pred = model(x)
+            loss = criterion(pred, y)
+    else:
         pred = model(x)
         loss = criterion(pred, y)
 
-    if dtype == torch.bfloat16:
+    if dtype == torch.bfloat16 and use_autocast:
         loss.backward()
         optimizer.step()
-
     else:
         scaled_loss = scaler.scale_loss(loss)
         scaled_loss.backward()
-
         grads = [p.grad for p in model.parameters() if p.grad is not None]
         scaler.step(optimizer, grads)
 
     optimizer.zero_grad()
+    return loss.item()
 
 
 # ===== 测试验证 =====
 if __name__ == "__main__":
-    import copy
+    torch.manual_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # 测试 Scaler 基本逻辑
     scaler = AMPScaler(init_scale=1024.0)
-    assert abs(scaler.scale_loss(torch.tensor(2.0)).item() - 2048.0) < 1e-6, "scale_loss wrong"
+    scaled = scaler.scale_loss(torch.tensor(2.0))
+    assert abs(scaled.item() - 2048.0) < 1e-6
+    print("✅ scale_loss 正确")
 
-    # 测试溢出检测
-    grads = [torch.randn(4, 4) * 10, torch.tensor([float("nan")])]
-    assert scaler.unscale_(grads) == True, "should detect NaN"
-    print("✅ AMPScaler 基本功能验证通过")
+    scaler2 = AMPScaler(init_scale=1024.0)
+    grads_normal = [torch.randn(4, 4) * 10]
+    overflow = scaler2.unscale_(grads_normal)
+    assert overflow == False
+    print("✅ unscale_ 正常梯度无溢出")
 
-    # 测试 train_step basic flow
+    scaler3 = AMPScaler(init_scale=1024.0)
+    grads_nan = [torch.randn(4, 4), torch.tensor([float("nan")])]
+    overflow3 = scaler3.unscale_(grads_nan)
+    assert overflow3 == True
+    print("✅ unscale_ 检测 NaN 溢出")
+
+    scaler4 = AMPScaler(init_scale=1024.0, growth_interval=3)
     model = nn.Sequential(nn.Linear(8, 16), nn.ReLU(), nn.Linear(16, 4)).to(device)
-    model.train()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    scaler = AMPScaler()
-    x = torch.randn(2, 8)
-    y = torch.randn(2, 4)
+    x = torch.randn(4, 8)
+    y = torch.randn(4, 4)
 
-    try:
-        train_step(model, optimizer, scaler, None, x, y, torch.float16, device)
-        print("✅ train_step fp16 执行成功")
-    except NotImplementedError:
-        print("ℹ️ train_step 待实现")
+    loss = train_step(model, optimizer, scaler4, x, y, dtype=torch.float16, device=device)
+    assert scaler4.scale > 0
+    print(f"✅ train_step fp16: loss={loss:.4f}, scale={scaler4.scale}")
 
-    try:
-        train_step(model, optimizer, scaler, None, x, y, torch.bfloat16, device)
-        print("✅ train_step bf16 执行成功")
-    except NotImplementedError:
-        print("ℹ️ train_step 待实现")
+    scaler5 = AMPScaler(init_scale=1024.0)
+    model2 = nn.Sequential(nn.Linear(8, 16), nn.ReLU(), nn.Linear(16, 4)).to(device)
+    optimizer2 = torch.optim.SGD(model2.parameters(), lr=0.01)
+    loss2 = train_step(model2, optimizer2, scaler5, x, y, dtype=torch.bfloat16, device=device)
+    print(f"✅ train_step bf16: loss={loss2:.4f}")
+
+    scaler6 = AMPScaler(init_scale=1024.0, backoff_factor=0.5)
+    scale_before = scaler6.scale
+    grads_inf = [torch.tensor([[float("inf")]])]
+    scaler6.step(torch.optim.SGD([nn.Parameter(torch.randn(1, 1))], lr=0.01), grads_inf)
+    assert scaler6.scale == scale_before * 0.5, "溢出后 scale 应衰减"
+    print(f"✅ 溢出处理: scale {scale_before} -> {scaler6.scale}")
+    print("✅ 全部测试通过")

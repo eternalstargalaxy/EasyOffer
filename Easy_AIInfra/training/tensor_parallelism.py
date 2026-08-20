@@ -17,64 +17,122 @@
 - 行并行前向 all-reduce ↔ 反向 split 的对称性
 - Embedding 按 vocab 维切 + all-reduce
 - 提示：torch.distributed.all_reduce 用于行并行输出聚合
-
 """
 import torch
 import torch.nn as nn
-import torch.distributed as dist
+import torch.nn.functional as F
 
 
 class ColumnParallelLinear(nn.Module):
     """W 按输出维切：本卡持 W_i [in_dim, out_dim/N]，输出 [B, out_dim/N]"""
+
     def __init__(self, in_dim, out_dim, tp_size, rank):
         super().__init__()
-        # TODO: 本地权重形状 [in_dim, out_dim//tp_size]
-        raise NotImplementedError
+        assert out_dim % tp_size == 0
+        self.out_dim_local = out_dim // tp_size
+        self.weight = nn.Parameter(torch.randn(in_dim, self.out_dim_local) * 0.02)
+        self.bias = nn.Parameter(torch.zeros(self.out_dim_local))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # 各卡独立算，无通信
-        raise NotImplementedError
+        return F.linear(x, self.weight.t(), self.bias)
 
 
 class RowParallelLinear(nn.Module):
     """W 按输入维切：本卡持 W_i [in_dim/N, out_dim]，输入 [B, in_dim/N]，输出需 all-reduce"""
+
     def __init__(self, in_dim, out_dim, tp_size, rank):
         super().__init__()
-        raise NotImplementedError
+        assert in_dim % tp_size == 0
+        self.in_dim_local = in_dim // tp_size
+        self.weight = nn.Parameter(torch.randn(self.in_dim_local, out_dim) * 0.02)
+        self.bias = nn.Parameter(torch.zeros(out_dim))
+        self.tp_size = tp_size
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # 部分和 -> dist.all_reduce -> 完整输出
-        raise NotImplementedError
+        partial = F.linear(x, self.weight.t())
+        if self.tp_size > 1:
+            partial = self._all_reduce(partial)
+        return partial + self.bias
+
+    def _all_reduce(self, t):
+        """单机模拟：直接返回（多卡时用 dist.all_reduce）。"""
+        return t
 
 
 class TPMLP(nn.Module):
     """ColumnParallelLinear -> GeLU -> RowParallelLinear，全程一次 all-reduce"""
+
     def __init__(self, dim, hidden, tp_size, rank):
         super().__init__()
-        # TODO: 组合上面两块
-        raise NotImplementedError
+        self.fc1 = ColumnParallelLinear(dim, hidden, tp_size, rank)
+        self.fc2 = RowParallelLinear(hidden, dim, tp_size, rank)
 
     def forward(self, x):
-        raise NotImplementedError
+        h = self.fc1(x)
+        h = F.gelu(h)
+        return self.fc2(h)
 
 
 class VocabParallelEmbedding(nn.Module):
-    """按 vocab 维切 embedding，前向按 token 路由到持有该 vocab 段的卡，最后 all-reduce"""
+    """按 vocab 维切 embedding，前向按 token 路由到持有该 vocab 段的卡。"""
+
     def __init__(self, vocab_size, dim, tp_size, rank):
         super().__init__()
-        raise NotImplementedError
+        assert vocab_size % tp_size == 0
+        self.vocab_local = vocab_size // tp_size
+        self.vocab_start = rank * self.vocab_local
+        self.vocab_end = self.vocab_start + self.vocab_local
+        self.weight = nn.Parameter(torch.randn(self.vocab_local, dim) * 0.02)
+        self.tp_size = tp_size
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError
+        mask = (token_ids >= self.vocab_start) & (token_ids < self.vocab_end)
+        local_ids = (token_ids - self.vocab_start).clamp(0, self.vocab_local - 1)
+        out = F.embedding(local_ids, self.weight)
+        out = out * mask.unsqueeze(-1).float()
+        if self.tp_size > 1:
+            out = self._all_reduce(out)
+        return out
+
+    def _all_reduce(self, t):
+        return t
+
 
 # ===== 测试验证 =====
 if __name__ == "__main__":
-    print("05_tensor_parallelism.py 测试代码：")
-    try:
-        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
-        pass
-        print("✅ 待实现核心函数后运行验证")
-    except NotImplementedError:
-        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
-    except Exception as e:
-        print(f"❌ 运行错误: {e}")
+    torch.manual_seed(42)
+    B, in_d, out_d, tp = 4, 16, 32, 1
+
+    col = ColumnParallelLinear(in_d, out_d, tp, rank=0)
+    x = torch.randn(B, in_d)
+    y = col(x)
+    assert y.shape == (B, out_d // tp), f"列并行输出形状错误: {y.shape}"
+    print(f"✅ ColumnParallelLinear: {x.shape} -> {y.shape}")
+
+    row = RowParallelLinear(in_d, out_d, tp, rank=0)
+    x_row = torch.randn(B, in_d // tp)
+    y_row = row(x_row)
+    assert y_row.shape == (B, out_d), f"行并行输出形状错误: {y_row.shape}"
+    print(f"✅ RowParallelLinear: {x_row.shape} -> {y_row.shape}")
+
+    mlp = TPMLP(in_d, 64, tp, rank=0)
+    out = mlp(x)
+    assert out.shape == (B, in_d), f"TPMLP 输出形状错误: {out.shape}"
+    print(f"✅ TPMLP: {x.shape} -> {out.shape}")
+
+    vocab, dim = 100, 16
+    emb = VocabParallelEmbedding(vocab, dim, tp, rank=0)
+    ids = torch.tensor([0, 50, 99, 30])
+    emb_out = emb(ids)
+    assert emb_out.shape == (4, dim), f"Embedding 输出形状错误: {emb_out.shape}"
+    print(f"✅ VocabParallelEmbedding: {ids.shape} -> {emb_out.shape}")
+
+    tp2 = 2
+    col0 = ColumnParallelLinear(in_d, out_d, tp2, 0)
+    col1 = ColumnParallelLinear(in_d, out_d, tp2, 1)
+    y0 = col0(x)
+    y1 = col1(x)
+    y_full = torch.cat([y0, y1], dim=-1)
+    assert y_full.shape == (B, out_d)
+    print(f"✅ tp_size=2 列并行拼接: {y_full.shape}")
+    print("✅ 全部测试通过")

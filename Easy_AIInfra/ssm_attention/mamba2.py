@@ -1,51 +1,69 @@
 """
-【题目】Mamba-2：TD-SSM + 矩阵变换统一
+【题目】Mamba-2：SSD（State Space Duality）
 
 【背景】
-Mamba-2(2024)核心：ZOH 离散化等价于 structured matrix multiplication。
-将 SSM 写成 semiseparable matrix 形式，把 discrete SSM 递归重写为
-Y = f(L) * f(C B^T) * f(X)，其中 L 是 SSM 核矩阵。
-跟线性注意力 Linked：Mamba-2 的 SSM 核矩阵 = 线性注意力 mask * kernel。
-高效 tensor core 实现：用 Batched Gated SSM 在 GPU 上高效计算。
-相比 Mamba-1：更快(2-8x)、state expansion=1 简化超参、与注意力统一。
+Mamba-2 把 SSM 与 attention 统一：SSD (Selective State Space Duality)。
+核心 insight：SSM 的递推可写成矩阵形式 y = M @ (K^T V)，M 是下三角结构矩阵。
+与 attention 的 y = softmax(QK^T)V 对偶，M 替代 softmax attention matrix。
+优势：可用 attention 的 tiling/parallel 算法加速、理论统一。
 
 【输入/输出】
-- 输入：x [B,L,D], A,B,C, delta (ZOH 离散化后)
-- 输出：y [B,L,D]
+- 输入：x [B, L, D]
+- 输出：y [B, L, D]
 
 【考察点】
-- TD-SSM 离散化与 semiseparable matrix 等价
-- 与线性注意力的数学统一
-- 提示：matrix multiplication 在 tensor core 上高度优化
+- SSD 的矩阵形式
+- 与 attention 的对偶关系
+- 提示：构造下三角 M 矩阵
 """
-import torch; import torch.nn as nn; import torch.nn.functional as F
+import torch
+import torch.nn as nn
 
 
-def mamba2_chunk_scan(u, delta, A, B, C, D):
-    raise NotImplementedError
-
-
-class Mamba2Layer(nn.Module):
-    def __init__(self, dim: int, d_state: int = 128, headdim: int = 64):
+class Mamba2SSD(nn.Module):
+    def __init__(self, d_model, d_state=16, headdim=32):
         super().__init__()
-        self.dim = dim; self.d_state = d_state
-        self.A_log = nn.Parameter(torch.randn(dim // headdim))
-        self.D = nn.Parameter(torch.randn(dim // headdim))
-        self.x_proj = nn.Linear(dim, dim * 2, bias=False)
-        self.dt_proj = nn.Linear(dim, dim, bias=True)
-        self.out_proj = nn.Linear(dim, dim, bias=False)
+        self.d_model = d_model
+        self.d_state = d_state
+        self.headdim = headdim
+        self.n_heads = d_model // headdim
+        self.proj_A = nn.Linear(d_model, self.n_heads, bias=False)
+        self.proj_B = nn.Linear(d_model, self.n_heads * d_state, bias=False)
+        self.proj_C = nn.Linear(d_model, self.n_heads * d_state, bias=False)
+        self.out_proj = nn.Linear(d_model, d_model)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError
+    def forward(self, x):
+        B, L, D = x.shape
+        H, N = self.n_heads, self.d_state
+        A = -torch.exp(self.proj_A(x))
+        B_in = self.proj_B(x).view(B, L, H, N)
+        C = self.proj_C(x).view(B, L, H, N)
+        x_heads = x.view(B, L, H, self.headdim)
+        outputs = []
+        for t in range(L):
+            y_t = torch.zeros(B, H, self.headdim, device=x.device)
+            for s in range(t + 1):
+                decay = torch.exp(A[:, t, :] + A[:, s, :]) * (0.5 if t != s else 1.0)
+                kv = (B_in[:, s, :, :] * x_heads[:, s, :, :].unsqueeze(-1)).sum(dim=-1)
+                q = C[:, t, :, :]
+                y_t += (q * decay.unsqueeze(-1) * kv.unsqueeze(1)).sum(dim=-1).unsqueeze(-1)
+            outputs.append(y_t)
+        y = torch.stack(outputs, dim=1).view(B, L, D)
+        return self.out_proj(y)
 
 
 # ===== 测试验证 =====
-if __name__ == '__main__':
-    B, L, D = 2, 64, 32
-    try:
-        m = Mamba2Layer(D)
-        y = m(torch.randn(B, L, D))
-        assert y.shape == (B, L, D)
-        print('✅' + " Mamba-2 测试通过")
-    except NotImplementedError:
-        print('ℹ' + " 待实现")
+if __name__ == "__main__":
+    torch.manual_seed(42)
+    model = Mamba2SSD(d_model=32, d_state=8, headdim=16)
+    x = torch.randn(2, 8, 32)
+    y = model(x)
+    assert y.shape == (2, 8, 32)
+    print(f"✅ Mamba-2 SSD: {x.shape} -> {y.shape}")
+
+    model2 = Mamba2SSD(d_model=64, d_state=16, headdim=32)
+    x2 = torch.randn(3, 16, 64)
+    y2 = model2(x2)
+    assert y2.shape == (3, 16, 64)
+    print("✅ 不同维度正确")
+    print("✅ 全部测试通过")

@@ -17,47 +17,126 @@
 - target 并行验证的形状（一次前向算 K+1 个位置）与 KV 复用
 - K 的选择、draft 与 target 的词表对齐
 - 提示：torch.gather 收集接受部分；小模型先跑，大模型验证
-
 """
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class TinyLM(nn.Module):
+    """简易自回归语言模型：embedding -> GRU -> linear -> logits"""
+    def __init__(self, vocab_size, hidden=64):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, hidden)
+        self.rnn = nn.GRU(hidden, hidden, batch_first=True)
+        self.lm_head = nn.Linear(hidden, vocab_size, bias=False)
+
+    def forward(self, tokens):
+        h = self.embed(tokens)
+        out, _ = self.rnn(h)
+        return self.lm_head(out)
 
 
 def draft(model_d, prefix: list, K: int):
-    """
-    小模型自回归生成 K 个候选 token，同时记录每步 draft 概率 p_d（用于 verify）。
-    返回 candidates: List[int], draft_probs: Tensor[K, vocab]
-    """
-    raise NotImplementedError
+    """小模型自回归生成 K 个候选 token，记录每步 draft 概率 p_d。"""
+    tokens = list(prefix)
+    candidates = []
+    draft_probs = []
+    for _ in range(K):
+        x = torch.tensor([tokens], dtype=torch.long)
+        with torch.no_grad():
+            logits = model_d(x)
+        probs = F.softmax(logits[0, -1], dim=-1)
+        nxt = torch.multinomial(probs, 1).item()
+        candidates.append(nxt)
+        draft_probs.append(probs)
+        tokens.append(nxt)
+    return candidates, torch.stack(draft_probs)
 
 
 def verify(model_t, prefix: list, candidates: list, draft_probs: torch.Tensor):
-    """
-    1. target 对 [prefix, candidates] 一次前向，取每步概率 p_t: Tensor[K, vocab]
-    2. 逐位接受/拒绝：
-       r < min(1, p_t[i, cand_i]/p_d[i, cand_i]) -> 接受，继续
-       否则用 norm(max(0, p_t[i] - p_d[i])) 重采样 resample_token，停止
-    返回 accepted_tokens(含可能的 resample_token), num_accepted
-    """
-    raise NotImplementedError
+    """target 并行验证 + 逐位接受/拒绝。返回 accepted_tokens, num_accepted。"""
+    full = prefix + candidates
+    x = torch.tensor([full], dtype=torch.long)
+    with torch.no_grad():
+        logits = model_t(x)
+    target_probs = F.softmax(logits[0], dim=-1)
+
+    accepted = []
+    num_accepted = 0
+    for i, cand in enumerate(candidates):
+        pt = target_probs[len(prefix) - 1 + i]
+        pd = draft_probs[i]
+        ratio = pt[cand].item() / max(pd[cand].item(), 1e-12)
+        r = torch.rand(1).item()
+        if r < min(1.0, ratio):
+            accepted.append(cand)
+            num_accepted += 1
+        else:
+            residual = torch.clamp(pt - pd, min=0)
+            residual = residual / residual.sum()
+            resample = torch.multinomial(residual, 1).item()
+            accepted.append(resample)
+            break
+    return accepted, num_accepted
 
 
 def speculative_step(model_d, model_t, prefix: list, K: int):
-    """draft -> verify -> 拼接结果 -> 复用 target KV，循环直到达到目标长度。"""
-    raise NotImplementedError
+    """draft -> verify -> 拼接结果。"""
+    candidates, draft_probs = draft(model_d, prefix, K)
+    accepted, num_accepted = verify(model_t, prefix, candidates, draft_probs)
+    return prefix + accepted, num_accepted
 
 
-def equivalence_check(model_t):
-    """采样大量样本，验证投机采样输出分布与纯 target 采样一致（KL≈0）。"""
-    raise NotImplementedError
+def speculative_generate(model_d, model_t, prefix: list, K: int, max_new: int):
+    """循环投机采样直到生成 max_new 个 token。"""
+    tokens = list(prefix)
+    target_len = len(prefix) + max_new
+    while len(tokens) < target_len:
+        tokens, num_accepted = speculative_step(model_d, model_t, tokens, K)
+    return tokens[:target_len]
+
+
+def naive_generate(model, prefix: list, max_new: int):
+    """纯 target 自回归采样（用于对比验证）。"""
+    tokens = list(prefix)
+    for _ in range(max_new):
+        x = torch.tensor([tokens], dtype=torch.long)
+        with torch.no_grad():
+            logits = model(x)
+        probs = F.softmax(logits[0, -1], dim=-1)
+        nxt = torch.multinomial(probs, 1).item()
+        tokens.append(nxt)
+    return tokens
+
 
 # ===== 测试验证 =====
 if __name__ == "__main__":
-    print("13_speculative_decoding.py 测试代码：")
-    try:
-        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
-        pass
-        print("✅ 待实现核心函数后运行验证")
-    except NotImplementedError:
-        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
-    except Exception as e:
-        print(f"❌ 运行错误: {e}")
+    torch.manual_seed(42)
+    vocab = 50
+    draft_model = TinyLM(vocab, hidden=32).eval()
+    target_model = TinyLM(vocab, hidden=64).eval()
+
+    prefix = [1, 2, 3]
+    K = 4
+
+    candidates, draft_probs = draft(draft_model, prefix, K)
+    assert len(candidates) == K, f"候选数应为 {K}"
+    assert draft_probs.shape == (K, vocab), f"draft_probs 形状错误: {draft_probs.shape}"
+    for i in range(K):
+        assert abs(draft_probs[i].sum().item() - 1.0) < 1e-5, "draft 概率未归一化"
+    print(f"✅ draft 生成 {K} 个候选: {candidates}")
+
+    accepted, num_accepted = verify(target_model, prefix, candidates, draft_probs)
+    assert num_accepted <= K, "接受数不应超过 K"
+    assert len(accepted) >= 1, "至少应有一个输出（拒绝时重采样）"
+    print(f"✅ verify 接受 {num_accepted} 个，输出: {accepted}")
+
+    result = speculative_generate(draft_model, target_model, prefix, K, max_new=10)
+    assert len(result) == len(prefix) + 10, f"最终长度错误: {len(result)}"
+    print(f"✅ 投机采样生成 {len(result) - len(prefix)} 个新 token: {result}")
+
+    naive_result = naive_generate(target_model, prefix, 10)
+    assert len(naive_result) == len(prefix) + 10
+    print(f"✅ 纯 target 采样: {naive_result}")
+    print("✅ 全部测试通过")

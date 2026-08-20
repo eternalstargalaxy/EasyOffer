@@ -22,20 +22,77 @@ from collections import deque
 
 def interleaved_1f1b_schedule(pp_size: int, num_micro: int,
                                num_chunks: int, rank: int) -> list:
-    raise NotImplementedError
+    """
+    Interleaved 1F1B 调度。
+    返回 [(chunk_id, micro_id, op_type), ...]
+    """
+    total_micro = num_micro * num_chunks
+    warmup = (pp_size - rank - 1) * num_chunks
+    warmup = min(warmup, total_micro)
+
+    schedule = []
+    fwd_count = 0
+    bwd_count = 0
+
+    for i in range(warmup):
+        chunk = i // num_micro
+        micro = i % num_micro
+        schedule.append((chunk, micro, "F"))
+        fwd_count += 1
+
+    steady = total_micro - warmup
+    for i in range(steady):
+        f_chunk = (warmup + i) // num_micro
+        f_micro = (warmup + i) % num_micro
+        schedule.append((f_chunk, f_micro, "F"))
+        fwd_count += 1
+
+        b_chunk = i // num_micro
+        b_micro = i % num_micro
+        schedule.append((b_chunk, b_micro, "B"))
+        bwd_count += 1
+
+    for i in range(steady, total_micro):
+        b_chunk = i // num_micro
+        b_micro = i % num_micro
+        schedule.append((b_chunk, b_micro, "B"))
+        bwd_count += 1
+
+    return schedule
+
+
+def compute_bubble(pp_size: int, num_micro: int, num_chunks: int) -> float:
+    """计算 bubble 占比。"""
+    ideal = num_micro * num_chunks
+    bubble = (pp_size - 1) / (num_chunks * num_micro + pp_size - 1)
+    return bubble
 
 
 # ===== 测试验证 =====
 if __name__ == '__main__':
     pp, M, V = 4, 8, 2
+
     for r in range(pp):
         schedule = interleaved_1f1b_schedule(pp, M, V, r)
-        assert len(schedule) > 0
-    try:
-        s = interleaved_1f1b_schedule(4, 8, 2, 0)
-        f_count = sum(1 for x in s if x[2] == "F")
-        b_count = sum(1 for x in s if x[2] == "B")
-        assert f_count == b_count + pp - 1
-        print('✅' + " Interleaved 1F1B 测试通过")
-    except NotImplementedError:
-        print('ℹ' + " 待实现")
+        f_count = sum(1 for x in schedule if x[2] == "F")
+        b_count = sum(1 for x in schedule if x[2] == "B")
+        assert f_count == M * V, f"rank {r}: F={f_count}, 期望 {M*V}"
+        assert b_count == M * V, f"rank {r}: B={b_count}, 期望 {M*V}"
+        print(f"  rank {r}: F={f_count}, B={b_count}, ops={len(schedule)}")
+    print("✅ Interleaved 1F1B: 各 stage F/B 数量正确")
+
+    s0 = interleaved_1f1b_schedule(pp, M, V, 0)
+    assert s0[0][2] == "F", "第一个操作应为 F"
+    assert s0[-1][2] == "B", "最后一个操作应为 B"
+    print("✅ 调度顺序: F 开头 B 结尾")
+
+    b1 = compute_bubble(pp, M, 1)
+    b2 = compute_bubble(pp, M, 2)
+    b4 = compute_bubble(pp, M, 4)
+    assert b4 < b2 < b1, "V 越大 bubble 应越小"
+    print(f"✅ Bubble: V=1 {b1:.3f}, V=2 {b2:.3f}, V=4 {b4:.3f}")
+
+    s_simple = interleaved_1f1b_schedule(2, 4, 1, 0)
+    assert len(s_simple) == 8
+    print(f"✅ 简单配置 (PP=2,M=4,V=1): {len(s_simple)} ops")
+    print("✅ 全部测试通过")

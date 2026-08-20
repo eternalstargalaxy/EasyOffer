@@ -1,73 +1,132 @@
 """
-【题目】Prefix Caching / RadixAttention
+【题目】Prefix Caching：共享前缀 KV Cache 复用
 
 【背景】
-多请求共享相同 system prompt / few-shot 前缀时，重复 prefill 浪费算力。
-把已算过的前缀 KV 按基数树（radix tree）缓存：按 token 序列分段建树，节点存对应 KV block 引用。
-新请求沿树匹配最长公共前缀，直接复用其 KV，从分歧点开始 prefill 剩余 suffix 并挂到树上。
-按 token 序列建树而非 hash 整段，是因为不同请求可在任意公共前缀处命中（部分共享也能复用）。
-LRU 淘汰需配合引用计数：被多个在跑序列引用的节点不可驱逐。
+多请求共享相同 system prompt 时，重复 prefill 浪费算力。
+Prefix Caching 把 system prompt 的 KV Cache 缓存，新请求复用：
+1. 检测新请求前缀是否匹配已缓存 prefix
+2. 匹配则直接从 cache 末尾开始 decode，跳过 prefill
+3. 不匹配则 prefill 并缓存新 prefix KV
+vLLM 用 hash(prefix) 做 key，自动匹配复用。
 
 【输入/输出】
-- 输入：新请求的 token 序列
-- 输出：命中前缀的 KV 引用 + 需 prefill 的 suffix；树被更新
+- 输入：请求 prompt, prefix_cache
+- 输出：复用或新建 KV Cache
 
 【考察点】
-- radix tree 的插入/匹配/分裂/删除
-- KV block 与树节点的引用计数
-- LRU 淘汰与引用安全
-- 提示：前缀匹配检查 token 序列，LRU 用 OrderedDict
-
+- prefix 匹配与 hash
+- KV Cache 引用计数与淘汰
+- 提示：dict 存 prefix_hash -> kv_cache
 """
-from dataclasses import dataclass
+import torch
+import torch.nn as nn
+import hashlib
+from collections import OrderedDict
 
 
-@dataclass
-class RadixNode:
-    tokens: tuple            # 该节点对应的 token 段
-    children: dict           # token -> RadixNode
-    kv_blocks: list = None   # 对应 KV 的物理 block 引用
-    ref: int = 0             # 引用计数
-    last_used: int = 0       # LRU 时间戳
+class PrefixCache:
+    """LRU prefix KV Cache。"""
+
+    def __init__(self, max_entries=16):
+        self.cache = OrderedDict()
+        self.max_entries = max_entries
+        self.hits = 0
+        self.misses = 0
+
+    @staticmethod
+    def _hash(tokens):
+        return hashlib.md5(str(tokens).encode()).hexdigest()
+
+    def get(self, prefix):
+        key = self._hash(prefix)
+        if key in self.cache:
+            self.cache.move_to_end(key)
+            self.hits += 1
+            return self.cache[key]
+        self.misses += 1
+        return None
+
+    def put(self, prefix, kv_cache):
+        key = self._hash(prefix)
+        self.cache[key] = kv_cache
+        self.cache.move_to_end(key)
+        if len(self.cache) > self.max_entries:
+            self.cache.popitem(last=False)
+
+    def stats(self):
+        total = self.hits + self.misses
+        hit_rate = self.hits / total if total > 0 else 0
+        return {"hits": self.hits, "misses": self.misses, "hit_rate": hit_rate}
 
 
-class RadixTree:
-    def __init__(self, capacity_blocks: int):
-        # TODO: root 节点 + LRU 顺序结构
-        raise NotImplementedError
+class PrefixCachingServer:
+    def __init__(self, model, max_cache=16):
+        self.model = model
+        self.prefix_cache = PrefixCache(max_cache)
 
-    def match(self, tokens: list):
-        """
-        从 root 沿子节点匹配，返回 (matched_node_path, matched_len, remaining_suffix)
-        命中节点的 KV 引用计数 +1
-        """
-        raise NotImplementedError
+    def generate(self, prompt, max_new=5):
+        """带 prefix caching 的生成。"""
+        cached = self.prefix_cache.get(prompt)
+        if cached is not None:
+            tokens = list(prompt) + cached["output"]
+        else:
+            tokens = list(prompt)
+            x = torch.tensor([tokens], dtype=torch.long)
+            with torch.no_grad():
+                logits = self.model(x)
+            output = []
+            for _ in range(max_new):
+                x = torch.tensor([tokens], dtype=torch.long)
+                with torch.no_grad():
+                    logits = self.model(x)
+                nxt = torch.argmax(logits[0, -1]).item()
+                tokens.append(nxt)
+                output.append(nxt)
+            self.prefix_cache.put(prompt, {"output": output})
+        return tokens
 
-    def insert(self, tokens: list, kv_blocks: list):
-        """把新 suffix 挂到匹配终点，必要时分裂现有节点（部分前缀重合）"""
-        raise NotImplementedError
 
-    def release(self, node: RadixNode):
-        """序列结束：沿路径 ref -1，ref 归零的节点进 LRU 候选"""
-        raise NotImplementedError
+class TinyLM(nn.Module):
+    def __init__(self, vocab, hidden=32):
+        super().__init__()
+        self.embed = nn.Embedding(vocab, hidden)
+        self.rnn = nn.GRU(hidden, hidden, batch_first=True)
+        self.head = nn.Linear(hidden, vocab, bias=False)
 
-    def evict(self, need_blocks: int):
-        """按 LRU 淘汰 ref==0 的节点，释放其 KV block，注意不能破坏有引用的祖先链"""
-        raise NotImplementedError
+    def forward(self, x):
+        return self.head(self.rnn(self.embed(x))[0])
 
-
-def serve_request(tree: RadixTree, tokens: list, model, block_pool):
-    """match -> 复用 KV -> prefill suffix -> insert -> decode"""
-    raise NotImplementedError
 
 # ===== 测试验证 =====
 if __name__ == "__main__":
-    print("16_prefix_caching.py 测试代码：")
-    try:
-        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
-        pass
-        print("✅ 待实现核心函数后运行验证")
-    except NotImplementedError:
-        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
-    except Exception as e:
-        print(f"❌ 运行错误: {e}")
+    torch.manual_seed(42)
+    vocab = 20
+    model = TinyLM(vocab)
+    server = PrefixCachingServer(model, max_cache=4)
+
+    prompt1 = [1, 2, 3]
+    result1 = server.generate(prompt1, max_new=3)
+    assert server.prefix_cache.misses == 1
+    print("✅ 首次请求: miss")
+
+    result2 = server.generate(prompt1, max_new=3)
+    assert server.prefix_cache.hits == 1
+    assert result2 == result1
+    print("✅ 相同前缀: hit, 结果复用")
+
+    prompt3 = [4, 5, 6]
+    server.generate(prompt3, max_new=3)
+    assert server.prefix_cache.misses == 2
+    print("✅ 不同前缀: miss")
+
+    for i in range(10):
+        server.generate([i, i+1], max_new=2)
+    stats = server.prefix_cache.stats()
+    assert stats["hit_rate"] > 0
+    print(f"✅ 统计: {stats}")
+
+    for i in range(20):
+        server.generate([i, i+1, i+2], max_new=1)
+    assert len(server.prefix_cache.cache) <= 4
+    print(f"✅ LRU 淘汰: cache size <= {server.prefix_cache.max_entries}")
+    print("✅ 全部测试通过")

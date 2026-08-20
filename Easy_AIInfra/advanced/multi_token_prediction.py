@@ -1,48 +1,101 @@
 """
-【题目】Multi-Token Prediction (MTP)：多头预测未来 token
+【题目】Multi-Token Prediction (MTP)
 
 【背景】
-标准自回归一次只预测 1 token，MTP(DeepSeek-V3/Meta 2024)一次预测 K 个。
-DeepSeek MTP：在最后一层后挂 K 个独立 head，每个 head i 预测第 t+i token。
-head i 用 causal mask 看 0..t+i-1 位置，把 i-1 的 logit 作为额外输入。
-训练损失 = sum_i CE(loss_i)，推理时 MTP 头可直接用做投机解码 draft。
-Meta MTP：共享 head 参数，用 position offset 控制预测目标。
-优势：训练更高效(data efficiency)，推理可作为免费投机解码。
+传统自回归一次只预测一个 token，训练效率低。MTP 同时预测未来 k 个 token：
+1. 主 head 预测 t+1
+2. 额外 MTP head 预测 t+2, t+3, ..., t+k
+3. 训练时所有 head 同时有监督信号，推理时可做投机验证
+DeepSeek-V3 用 MTP 加速训练 + 推理。
 
 【输入/输出】
-- 输入：hidden [B,L,D], MTP heads, future steps K
-- 输出：K 个未来 token 的 logits
+- 输入：hidden_states [B, S, D], mtp_heads, k
+- 输出：k 个未来 token 的 logits
 
 【考察点】
-- MTP 的 causal mask 设计(每步递增)
-- 训练时多个 CE loss 联合优化
-- 推理时 MTP 作为投机解码加速
-- 提示：nn.ModuleList 存多个 head，torch.triu 构造阶梯 mask
+- 多 head 共享 backbone 的效率
+- 训练 loss = sum(CE(head_i, target_{t+i}))
+- 推理时投机验证
+- 提示：nn.ModuleList 多 head
 """
-import torch; import torch.nn as nn; import torch.nn.functional as F
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
-class MultiTokenHead(nn.Module):
-    def __init__(self, hidden_dim: int, vocab_size: int, num_tokens: int = 2):
+class MTPHead(nn.Module):
+    """单个 MTP head：预测第 k 步未来 token。"""
+
+    def __init__(self, dim, vocab):
         super().__init__()
-        self.heads = nn.ModuleList([nn.Linear(hidden_dim, vocab_size) for _ in range(num_tokens)])
+        self.proj = nn.Linear(dim, dim)
+        self.ln = nn.LayerNorm(dim)
+        self.lm_head = nn.Linear(dim, vocab, bias=False)
 
-    def forward(self, h: torch.Tensor) -> list:
-        raise NotImplementedError
+    def forward(self, h):
+        return self.lm_head(self.ln(self.proj(h)))
 
 
-def mtp_loss(logits_list, labels, shift: int = 1):
-    raise NotImplementedError
+class MTPModel(nn.Module):
+    """Backbone + k 个 MTP head。"""
+
+    def __init__(self, dim, vocab, num_mtp=3):
+        super().__init__()
+        self.embed = nn.Embedding(vocab, dim)
+        self.rnn = nn.GRU(dim, dim, batch_first=True)
+        self.main_head = nn.Linear(dim, vocab, bias=False)
+        self.mtp_heads = nn.ModuleList([
+            MTPHead(dim, vocab) for _ in range(num_mtp)
+        ])
+        self.num_mtp = num_mtp
+
+    def forward(self, tokens):
+        h = self.embed(tokens)
+        h, _ = self.rnn(h)
+        main_logits = self.main_head(h)
+        mtp_logits = [head(h) for head in self.mtp_heads]
+        return main_logits, mtp_logits
+
+    def loss(self, tokens, targets):
+        """训练 loss：主 head + MTP heads。"""
+        main_logits, mtp_logits = self.forward(tokens)
+        loss = F.cross_entropy(main_logits[:, :-1].reshape(-1, main_logits.shape[-1]),
+                               targets[:, 1:].reshape(-1))
+        for i, mtp_l in enumerate(mtp_logits):
+            if i + 2 < targets.shape[1]:
+                loss += F.cross_entropy(
+                    mtp_l[:, :-(i+2)].reshape(-1, mtp_l.shape[-1]),
+                    targets[:, i+2:].reshape(-1)
+                )
+        return loss
 
 
 # ===== 测试验证 =====
-if __name__ == '__main__':
-    D, V, K = 64, 100, 3
-    try:
-        m = MultiTokenHead(D, V, K)
-        h = torch.randn(2, 10, D)
-        logs = m(h)
-        assert len(logs) == K
-        print('✅' + " MTP 测试通过")
-    except NotImplementedError:
-        print('ℹ' + " 待实现")
+if __name__ == "__main__":
+    torch.manual_seed(42)
+    vocab, dim = 50, 32
+    model = MTPModel(dim, vocab, num_mtp=3)
+    tokens = torch.randint(0, vocab, (2, 10))
+
+    main_l, mtp_l = model(tokens)
+    assert main_l.shape == (2, 10, vocab)
+    assert len(mtp_l) == 3
+    assert all(l.shape == (2, 10, vocab) for l in mtp_l)
+    print(f"✅ MTP forward: main {main_l.shape} + {len(mtp_l)} MTP heads")
+
+    loss = model.loss(tokens, tokens)
+    assert loss.item() > 0
+    print(f"✅ MTP loss: {loss.item():.4f}")
+
+    loss.backward()
+    grad_count = sum(1 for p in model.parameters() if p.grad is not None)
+    assert grad_count > 0
+    print(f"✅ 反向传播: {grad_count} params 有梯度")
+
+    for k in [1, 2, 5]:
+        m_k = MTPModel(dim, vocab, num_mtp=k)
+        _, mtp_k = m_k(tokens)
+        assert len(mtp_k) == k
+        print(f"  num_mtp={k}: {len(mtp_k)} heads")
+    print("✅ 不同 MTP 数量正确")
+    print("✅ 全部测试通过")

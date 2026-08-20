@@ -16,44 +16,110 @@ FlashAttention 把 Q/K/V 切块加载到 SRAM，用 online softmax 增量更新�
 - tiling 顺序与 SRAM 容量 M 假设
 - 因果 mask 在分块下整块跳过 / 部分掩码
 - 提示：分块计算避免实例化完整 n*n 矩阵
-
 """
 import torch
+import torch.nn.functional as F
 
 
 def naive_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor,
                     causal: bool = False) -> torch.Tensor:
     """朴素实现，用作对照。"""
-    raise NotImplementedError
+    N, d = Q.shape
+    scale = 1.0 / (d ** 0.5)
+    S = torch.matmul(Q, K.T) * scale
+    if causal:
+        mask = torch.tril(torch.ones(N, N, dtype=torch.bool))
+        S = S.masked_fill(~mask, float('-inf'))
+    P = F.softmax(S, dim=-1)
+    return torch.matmul(P, V)
 
 
 def flash_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor,
                     block_size: int, causal: bool = False) -> torch.Tensor:
     """
-    外层遍历 Q 块 i，维护该块的 m [Bq], l [Bq], O [Bq, d]（初始 m=-inf, l=0, O=0）
-    内层遍历 K/V 块 j：
-      S = Qi @ Kj^T * scale            # [Bq, Bk]
-      m_new = max(m, rowmax(S))
-      l = l * exp(m - m_new) + rowsum(exp(S - m_new))
-      O = O * exp(m - m_new) + exp(S - m_new) @ Vj
-      m = m_new
-    causal 时按块位置整块跳过（j 上三角）或部分掩码（对角块）。
+    FlashAttention 分块 + online softmax。
+    外层遍历 Q 块 i，维护该块的 m [Bq], l [Bq], O [Bq, d]
+    内层遍历 K/V 块 j，增量更新 m/l/O。
     """
-    raise NotImplementedError
+    N, d = Q.shape
+    scale = 1.0 / (d ** 0.5)
+    O = torch.zeros(N, d)
+    m = torch.full((N,), float('-inf'))
+    l = torch.zeros(N)
+
+    for i_start in range(0, N, block_size):
+        i_end = min(i_start + block_size, N)
+        Qi = Q[i_start:i_end]
+        mi = m[i_start:i_end].clone()
+        li = l[i_start:i_end].clone()
+        Oi = O[i_start:i_end].clone()
+
+        for j_start in range(0, N, block_size):
+            j_end = min(j_start + block_size, N)
+            Kj = K[j_start:j_end]
+            Vj = V[j_start:j_end]
+
+            Sij = torch.matmul(Qi, Kj.T) * scale
+
+            if causal:
+                for ii in range(i_end - i_start):
+                    for jj in range(j_end - j_start):
+                        global_i = i_start + ii
+                        global_j = j_start + jj
+                        if global_j > global_i:
+                            Sij[ii, jj] = float('-inf')
+
+            m_block = Sij.max(dim=-1).values
+            m_new = torch.maximum(mi, m_block)
+            alpha = torch.exp(mi - m_new)
+            beta = torch.exp(Sij - m_new.unsqueeze(-1))
+            li = li * alpha + beta.sum(dim=-1)
+            Oi = Oi * alpha.unsqueeze(-1) + torch.matmul(beta, Vj)
+            mi = m_new
+
+        O[i_start:i_end] = Oi
+        m[i_start:i_end] = mi
+        l[i_start:i_end] = li
+
+    O = O / l.unsqueeze(-1)
+    return O
 
 
 def io_complexity(N: int, d: int, M: int):
     """返回朴素 vs Flash 的 HBM IO 量"""
-    raise NotImplementedError
+    naive_io = N * N * d + N * d
+    flash_io = 2 * N * N * d * d / M
+    return {"naive": naive_io, "flash": flash_io, "speedup": naive_io / flash_io}
+
 
 # ===== 测试验证 =====
 if __name__ == "__main__":
-    print("11_flash_attention.py 测试代码：")
-    try:
-        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
-        pass
-        print("✅ 待实现核心函数后运行验证")
-    except NotImplementedError:
-        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
-    except Exception as e:
-        print(f"❌ 运行错误: {e}")
+    torch.manual_seed(42)
+    N, d = 16, 8
+    Q = torch.randn(N, d)
+    K = torch.randn(N, d)
+    V = torch.randn(N, d)
+
+    out_naive = naive_attention(Q, K, V, causal=False)
+    out_flash = flash_attention(Q, K, V, block_size=4, causal=False)
+    assert out_flash.shape == (N, d)
+    max_err = (out_naive - out_flash).abs().max().item()
+    assert max_err < 1e-5, f"Flash 与朴素结果误差过大: {max_err}"
+    print(f"✅ 无因果 mask: Flash 与朴素结果一致 (误差 {max_err:.2e})")
+
+    out_naive_c = naive_attention(Q, K, V, causal=True)
+    out_flash_c = flash_attention(Q, K, V, block_size=4, causal=True)
+    max_err_c = (out_naive_c - out_flash_c).abs().max().item()
+    assert max_err_c < 1e-5, f"因果 Flash 误差过大: {max_err_c}"
+    print(f"✅ 因果 mask: Flash 与朴素结果一致 (误差 {max_err_c:.2e})")
+
+    for bs in [1, 2, 8, 16]:
+        out_bs = flash_attention(Q, K, V, block_size=bs, causal=False)
+        err = (out_naive - out_bs).abs().max().item()
+        assert err < 1e-5, f"block_size={bs} 误差过大: {err}"
+    print("✅ 不同 block_size 结果一致")
+
+    ioc = io_complexity(1024, 64, 1024)
+    assert ioc["speedup"] > 1
+    print(f"✅ IO 复杂度: naive={ioc['naive']}, flash={ioc['flash']:.0f}, 加速 {ioc['speedup']:.1f}x")
+    print("✅ 全部测试通过")

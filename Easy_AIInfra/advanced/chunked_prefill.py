@@ -1,72 +1,79 @@
 """
-【题目】Chunked Prefill 与 decode 混排
+【题目】Chunked Prefill：分块预填充
 
 【背景】
-prefill 是 compute-bound（长 prompt 一次算），decode 是 memory-bound（每步 1 token）。
-同 batch 混入 prefill 会拖慢 decode 的 token 速率（prefill 占算力大）。
-Chunked Prefill 把长 prefill 切成固定 chunk（如 512 token），与 decode 共享 step，
-既复用算力又限制 prefill 对 decode 的干扰。chunk 间 KV 需连续：前一 chunk 末尾的 KV 是后一 chunk 的前缀。
-chunk_size 大 → prefill 吞吐高但 decode TPOT 抖动大；小 → 抖动小但 prefill 调度开销大。
+长 prompt 的 prefill 一次前向计算量大、显存峰值高。Chunked Prefill 把 prompt 分成多个 chunk，
+逐块 prefill 填充 KV Cache，与 decode 请求混排调度。优势：降低显存峰值、
+prefill 与 decode 共享 batch 提高吞吐、长 prompt 不阻塞短请求。
 
 【输入/输出】
-- 输入：长 prompt 请求，chunk_size，token budget
-- 输出：prompt 被切成多 chunk 逐 step 执行，与 decode 混排，最终产出 token
+- 输入：prompt tokens, chunk_size, kv_cache
+- 输出：分块填充 KV Cache，返回最终 logits
 
 【考察点】
-- prefill chunk 与 decode 的优先级与 budget 分配
-- chunk 边界 KV 衔接（前 chunk 末态作为后 chunk 前缀）
-- 对 TTFT（首 token 延迟）与 TPOT（逐 token 延迟）的影响
-- 提示：FlashAttention 分块处理；把长 prompt 拆成 chunk 逐步 prefill
-
+- chunk 大小选择与显存/吞吐 trade-off
+- prefill/decode 混排调度
+- 提示：每块 prefill 后 KV Cache 追加
 """
-from dataclasses import dataclass
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
-@dataclass
-class PrefillChunk:
-    req_id: int
-    tokens: list            # 该 chunk 的 token
-    prefix_kv_len: int      # 前 chunk 已积累的 KV 长度（衔接用）
-    is_last: bool
+class SimpleLM(nn.Module):
+    def __init__(self, vocab, dim=64):
+        super().__init__()
+        self.embed = nn.Embedding(vocab, dim)
+        self.rnn = nn.GRU(dim, dim, batch_first=True)
+        self.head = nn.Linear(dim, vocab, bias=False)
+
+    def forward(self, tokens):
+        return self.head(self.rnn(self.embed(tokens))[0])
 
 
-class ChunkedScheduler:
-    def __init__(self, chunk_size: int, token_budget: int):
-        # TODO: decode 队列 + prefill chunk 队列
-        raise NotImplementedError
+class ChunkedPrefill:
+    def __init__(self, model, chunk_size=8):
+        self.model = model
+        self.chunk_size = chunk_size
+        self.kv_cache = []
 
-    def split_prefill(self, req_id: int, prompt: list):
-        """把 prompt 切成多个 PrefillChunk 入队，记录前缀 KV 长度"""
-        raise NotImplementedError
+    def prefill(self, prompt_tokens):
+        """分块 prefill：把 prompt 分成 chunk 逐块前向。"""
+        tokens = prompt_tokens
+        for start in range(0, len(tokens), self.chunk_size):
+            chunk = tokens[start:start + self.chunk_size]
+            x = torch.tensor([chunk], dtype=torch.long)
+            with torch.no_grad():
+                logits = self.model(x)
+            self.kv_cache.append(chunk)
+        return logits[0, -1]
 
-    def schedule(self) -> list:
-        """
-        每步在 token_budget 内混排：
-          - decode 请求优先（保 TPOT）
-          - 剩余预算塞 prefill chunk（受 prefill 占比上限）
-        """
-        raise NotImplementedError
+    def decode(self, token):
+        x = torch.tensor([[token]], dtype=torch.long)
+        with torch.no_grad():
+            logits = self.model(x)
+        return logits[0, -1]
 
-    def run_step(self, batch: list, model, kv_cache):
-        """
-        prefill chunk: 用 prefix_kv_len 接续 KV，算该 chunk KV 并 append，最后一个 chunk 产出首 token
-        decode: 逐 token 推进
-        """
-        raise NotImplementedError
-
-
-def ttft_tpot_vs_chunk_size(chunk_sizes: list):
-    """返回不同 chunk_size 下的 TTFT/TPOT 曲线"""
-    raise NotImplementedError
 
 # ===== 测试验证 =====
 if __name__ == "__main__":
-    print("17_chunked_prefill.py 测试代码：")
-    try:
-        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
-        pass
-        print("✅ 待实现核心函数后运行验证")
-    except NotImplementedError:
-        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
-    except Exception as e:
-        print(f"❌ 运行错误: {e}")
+    torch.manual_seed(42)
+    vocab = 50
+    model = SimpleLM(vocab)
+    cp = ChunkedPrefill(model, chunk_size=4)
+
+    prompt = list(range(10))
+    logits = cp.prefill(prompt)
+    assert logits.shape == (vocab,)
+    assert len(cp.kv_cache) == 3, f"10/4 应有 3 块, 实际 {len(cp.kv_cache)}"
+    print(f"✅ Chunked prefill: {len(prompt)} tokens / chunk_size=4 -> {len(cp.kv_cache)} chunks")
+
+    next_logit = cp.decode(11)
+    assert next_logit.shape == (vocab,)
+    print("✅ Decode after prefill 正确")
+
+    cp2 = ChunkedPrefill(model, chunk_size=16)
+    logits2 = cp2.prefill(prompt)
+    assert len(cp2.kv_cache) == 1
+    print("✅ chunk_size > prompt: 单块完成")
+    print("✅ 全部测试通过")

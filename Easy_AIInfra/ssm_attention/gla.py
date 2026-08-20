@@ -1,51 +1,73 @@
 """
-【题目】GLA：门控线性注意力 (Gated Linear Attention)
+【题目】GLA：Gated Linear Attention
 
 【背景】
-GLA(2024)是线性注意力的升级：加 data-dependent gating 做遗忘控制。
-核心：gate_t = sigmoid(W_g x_t + b_g)，累加时对历史做逐通道 gate：
-S_t = gate_t * S_{t-1} + K_t^T V_t, O_t = Q_t S_t
-优势：gate 由数据动态决定遗忘量，克服线性注意力"无遗忘"的局限。
-与 Mamba-2 联系：GLA 的门控 SSM 核 = Mamba-2 的 semiseparable 核。
-chunkwise 并行：每块内并行矩阵乘，块间递归传递 S，O(n^2/C) 显存。
+GLA 在 Linear Attention 基础上引入门控机制：
+h_t = G_t ⊙ h_{t-1} + K_t^T V_t, y_t = Q_t @ h_t
+G_t 是输入相关的门控（forget gate），控制历史信息的遗忘。
+优势：比普通 linear attention 更强（有选择性遗忘）、比 Mamba 更简单（无 SSM 离散化）。
 
 【输入/输出】
-- 输入：Q,K,V [B,L,D], chunk_size
-- 输出：O [B,L,D]
+- 输入：x [B, L, D]
+- 输出：y [B, L, D]
 
 【考察点】
-- data-dependent gate vs Mamba selective SSM 统一视角
-- chunkwise 递归 vs 全并行 trade-off
-- 提示：torch.sigmoid 做 gate；chunk 内用矩阵乘，块间用 scan
+- 门控 G 的输入依赖
+- 递推式与并行式
+- 提示：sigmoid 门控
 """
-import torch; import torch.nn as nn
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
-def gla_chunkwise(Q, K, V, gate, chunk_size: int = 64):
-    raise NotImplementedError
-
-
-class GALayer(nn.Module):
-    def __init__(self, dim: int, head_dim: int = 64, chunk_size: int = 64):
+class GLALayer(nn.Module):
+    def __init__(self, d_model, num_heads=4):
         super().__init__()
-        self.dim = dim; self.head_dim = head_dim
-        self.num_heads = dim // head_dim
-        self.gate_proj = nn.Linear(dim, self.num_heads, bias=True)
-        self.q_proj = nn.Linear(dim, dim, bias=False)
-        self.k_proj = nn.Linear(dim, dim, bias=False)
-        self.v_proj = nn.Linear(dim, dim, bias=False)
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.head_dim = d_model // num_heads
+        self.q_proj = nn.Linear(d_model, d_model)
+        self.k_proj = nn.Linear(d_model, d_model)
+        self.v_proj = nn.Linear(d_model, d_model)
+        self.g_proj = nn.Linear(d_model, num_heads)
+        self.out_proj = nn.Linear(d_model, d_model)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError
+    def forward(self, x):
+        B, L, D = x.shape
+        H, Hd = self.num_heads, self.head_dim
+        Q = self.q_proj(x).view(B, L, H, Hd)
+        K = self.k_proj(x).view(B, L, H, Hd)
+        V = self.v_proj(x).view(B, L, H, Hd)
+        G = torch.sigmoid(self.g_proj(x))
+        S = torch.zeros(B, H, Hd, Hd, device=x.device)
+        outputs = []
+        for t in range(L):
+            g_t = G[:, t, :].view(B, H, 1, 1)
+            S = g_t * S + torch.einsum("bhd,bhe->bhde", K[:, t, :], V[:, t, :])
+            y_t = torch.einsum("bhd,bhde->bhe", Q[:, t, :], S)
+            outputs.append(y_t)
+        y = torch.stack(outputs, dim=1).view(B, L, D)
+        return self.out_proj(y)
 
 
 # ===== 测试验证 =====
-if __name__ == '__main__':
-    B, L, D = 2, 128, 64
-    try:
-        m = GALayer(D)
-        y = m(torch.randn(B, L, D))
-        assert y.shape == (B, L, D)
-        print('✅' + " GLA 测试通过")
-    except NotImplementedError:
-        print('ℹ' + " 待实现")
+if __name__ == "__main__":
+    torch.manual_seed(42)
+    model = GLALayer(d_model=32, num_heads=4)
+    x = torch.randn(2, 10, 32)
+    y = model(x)
+    assert y.shape == (2, 10, 32)
+    print(f"✅ GLA: {x.shape} -> {y.shape}")
+
+    x2 = torch.randn(4, 20, 32)
+    y2 = model(x2)
+    assert y2.shape == (4, 20, 32)
+    print("✅ 不同 batch/seq 正确")
+
+    model2 = GLALayer(d_model=64, num_heads=8)
+    x3 = torch.randn(2, 8, 64)
+    y3 = model2(x3)
+    assert y3.shape == (2, 8, 64)
+    print("✅ 不同维度正确")
+    print("✅ 全部测试通过")

@@ -1,70 +1,90 @@
 """
-【题目】多 LoRA adapter 推理调度
+【题目】LoRA 多适配器推理
 
 【背景】
-服务多个用户各自挂不同 LoRA 时，若为每个 adapter 物化一份完整权重 (W + ΔW) 则显存爆炸。
-利用 ΔW = B·A 的低秩结构（rank r 远小于 d），推理时共享 base 权重 W，只多存小秩矩阵 A/B，
-按请求路由对应 adapter：base 部分统一算 x @ W，LoRA 部分按 adapter 分组算 (x·A)·B 再加回。
-batch 内可混用不同 adapter，用 index map 把 token 路由到其 adapter 的 A/B。
-高并发下"统一 base + 分组 LoRA"比合并权重更优：base GEMM 大算力可批量化，LoRA 部分小且可分组并行。
+同时服务多个 LoRA 适配器时，为每个适配器单独加载 base model 浪费显存。
+Multi-LoRA serving 共享 base model，只加载不同 LoRA adapter（A/B 矩阵），
+推理时动态切换或 batch 混合不同 adapter。优势：显存 O(base + n*adapter) vs O(n*base)。
 
 【输入/输出】
-- 输入：x: Tensor[total_tokens, in_dim], adapter_ids: Tensor[total_tokens], base_W, adapters={id: (A,B)}
-- 输出：y = x @ base_W + (x @ A_i) @ B_i，每 token 用各自 adapter
+- 输入：base_model, adapters={name: (A, B)}, 请求指定 adapter
+- 输出：用对应 adapter 推理的结果
 
 【考察点】
-- 共享 base + 分组 LoRA 的计算组织
-- batch 内多 adapter 的 token 路由与分组 GEMM
-- rank、adapter 数对显存/算力的影响、热加载
-- 提示：LoRA 权重 merge/unmerge 用加减操作
-
+- adapter 切换开销与 batch 混合
+- LoRA 前向：W*x + B*A*x
+- 提示：nn.ModuleDict 管理多 adapter
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
-class MultiLoraLinear(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, base_W: torch.Tensor):
-        # TODO: base 权重 + adapters 字典 {id: (A [r, in], B [out, r])}
-        raise NotImplementedError
+class LoRAAdapter(nn.Module):
+    def __init__(self, in_dim, out_dim, rank=8):
+        super().__init__()
+        self.A = nn.Linear(in_dim, rank, bias=False)
+        self.B = nn.Linear(rank, out_dim, bias=False)
+        nn.init.zeros_(self.B.weight)
 
-    def load_adapter(self, adapter_id: int, A: torch.Tensor, B: torch.Tensor):
-        raise NotImplementedError
-
-    def unload_adapter(self, adapter_id: int):
-        raise NotImplementedError
-
-    def forward(self, x: torch.Tensor, adapter_ids: torch.Tensor) -> torch.Tensor:
-        """
-        1. base_out = x @ base_W^T            # 一次大 GEMM，所有 token 共享
-        2. 按 adapter_ids 把 token 分组
-        3. 对每组 g: lora_out = (x_g @ A_g^T) @ B_g^T
-        4. 把 lora_out 按 index 加回 base_out 对应行
-        """
-        raise NotImplementedError
+    def forward(self, x):
+        return self.B(self.A(x))
 
 
-def grouped_lora_gemm(x: torch.Tensor, groups: dict, adapters: dict):
-    """
-    groups: {adapter_id: token_indices}
-    对每组算 (x[indices] @ A) @ B，拼回原位置
-    （可用 torch.index_add_ 或 bmm 把组堆成 [G, r, ...] 批量算）
-    """
-    raise NotImplementedError
+class MultiLoRALinear(nn.Module):
+    """共享 base weight + 多 LoRA adapter。"""
 
+    def __init__(self, in_dim, out_dim, adapter_names, rank=8):
+        super().__init__()
+        self.base = nn.Linear(in_dim, out_dim)
+        self.adapters = nn.ModuleDict({
+            name: LoRAAdapter(in_dim, out_dim, rank) for name in adapter_names
+        })
 
-def mem_throughput_compare(num_adapters: int, rank: int, d: int):
-    """返回"合并全权重" vs "共享 base + 分组 LoRA" 的显存与吞吐"""
-    raise NotImplementedError
+    def forward(self, x, adapter_name: str = None):
+        out = self.base(x)
+        if adapter_name and adapter_name in self.adapters:
+            out = out + self.adapters[adapter_name](x)
+        return out
+
+    def forward_batch(self, x_batch, adapter_names):
+        """batch 混合：不同样本用不同 adapter。"""
+        outputs = []
+        for x, name in zip(x_batch, adapter_names):
+            out = self.base(x.unsqueeze(0))
+            if name in self.adapters:
+                out = out + self.adapters[name](x.unsqueeze(0))
+            outputs.append(out.squeeze(0))
+        return torch.stack(outputs)
+
 
 # ===== 测试验证 =====
 if __name__ == "__main__":
-    print("19_lora_multi_adapter_serve.py 测试代码：")
-    try:
-        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
-        pass
-        print("✅ 待实现核心函数后运行验证")
-    except NotImplementedError:
-        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
-    except Exception as e:
-        print(f"❌ 运行错误: {e}")
+    torch.manual_seed(42)
+    in_d, out_d = 64, 32
+    layer = MultiLoRALinear(in_d, out_d, ["task_a", "task_b"], rank=4)
+
+    x = torch.randn(4, in_d)
+    y_base = layer(x)
+    assert y_base.shape == (4, out_d)
+    print("✅ Base forward (无 adapter)")
+
+    y_a = layer(x, adapter_name="task_a")
+    assert y_a.shape == (4, out_d)
+    print("✅ LoRA forward (task_a)")
+
+    y_b = layer(x, adapter_name="task_b")
+    assert y_b.shape == (4, out_d)
+    print("✅ LoRA forward (task_b)")
+
+    x_batch = [torch.randn(in_d) for _ in range(3)]
+    names = ["task_a", "task_b", "task_a"]
+    y_mix = layer.forward_batch(x_batch, names)
+    assert y_mix.shape == (3, out_d)
+    print("✅ Batch 混合多 adapter")
+
+    layer.adapters["task_a"].B.weight.data = torch.randn_like(layer.adapters["task_a"].B.weight)
+    y_a2 = layer(x, adapter_name="task_a")
+    assert not torch.allclose(y_a, y_a2), "更新 B 后输出应变化"
+    print("✅ Adapter 参数更新生效")
+    print("✅ 全部测试通过")
