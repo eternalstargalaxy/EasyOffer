@@ -183,5 +183,32 @@ def main():
     
     print("Done!")
 
+# ===== 测试验证 =====
+def test_setup_model_args():
+    """测试模型参数配置。"""
+    args_7b = setup_model_args("7b", use_moe=True)
+    assert args_7b.dim == 4096
+    assert args_7b.n_heads == 32
+    assert args_7b.n_layers == 32
+    assert args_7b.n_routed_experts == 8
+
+    args_13b = setup_model_args("13b", use_moe=True)
+    assert args_13b.dim == 5120
+    assert args_13b.n_heads == 40
+
+    args_70b = setup_model_args("70b", use_moe=False)
+    assert args_70b.dim == 8192
+    assert args_70b.n_dense_layers == args_70b.n_layers
+
+    args_custom = setup_model_args("7b", max_seq_len=8192, dtype="fp8")
+    assert args_custom.max_seq_len == 8192
+    assert args_custom.dtype == "fp8"
+    print("✅ setup_model_args 测试通过")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        test_setup_model_args()
+    else:
+        main()
