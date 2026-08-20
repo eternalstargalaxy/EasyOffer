@@ -15,6 +15,8 @@ Continuous Batching 在每步 iteration 粒度动态拼批：新请求 prefill �
 - 显存预算（KV block 数）与调度/preempt 决策
 - 变长 batch 的 padding/unpadding 与结果按原 idx 回填
 - prefill/decode 混排的优先级（prefill 算力大，会拖慢 decode）
+- 提示：torch.cat 拼接不等长序列做 batch attention
+
 """
 from dataclasses import dataclass
 
@@ -52,3 +54,15 @@ class Scheduler:
         3. 写回 KV cache，append token；完成的标 done 并释放 KV
         """
         raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("12_continuous_batching.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

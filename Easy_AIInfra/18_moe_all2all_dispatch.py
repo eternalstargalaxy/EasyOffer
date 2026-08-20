@@ -15,6 +15,8 @@ DeepSeek 的 shared expert 对所有 token 共享、不参与 all-to-all，能�
 - token → dst rank 的置换与逆置换（unpermute）
 - all-to-all 缓冲布局（按 dst rank 连续拼接）+ padding
 - 负载均衡（drop/swap）与 padding 开销
+- 提示：torch.distributed.all_to_all 将 token 分发到对应 expert 所在 GPU
+
 """
 import torch
 import torch.distributed as dist
@@ -53,3 +55,15 @@ def moe_forward(tokens, gate, experts, expert_to_rank, world_size):
 def pad_to_equal(buffers: list):
     """各 dst 桶 pad 到同一长度，返回 padding 长度列表"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("18_moe_all2all_dispatch.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

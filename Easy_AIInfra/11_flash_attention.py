@@ -15,6 +15,8 @@ FlashAttention 把 Q/K/V 切块加载到 SRAM，用 online softmax 增量更新�
 - online softmax 的 m/l 校正公式正确性
 - tiling 顺序与 SRAM 容量 M 假设
 - 因果 mask 在分块下整块跳过 / 部分掩码
+- 提示：分块计算避免实例化完整 n*n 矩阵
+
 """
 import torch
 
@@ -43,3 +45,15 @@ def flash_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor,
 def io_complexity(N: int, d: int, M: int):
     """返回朴素 vs Flash 的 HBM IO 量"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("11_flash_attention.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

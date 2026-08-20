@@ -15,6 +15,8 @@
 - 1F1B 调度依赖正确性（同 stage 顺序、跨 stage F/B 传递，不能死锁）
 - warm-up 长度 = num_stages - rank - 1
 - GP vs 1F1B 气泡时间与峰值显存对比
+- 提示：torch.distributed.send / recv 用于 stage 间传递激活和梯度
+
 """
 from collections import deque
 
@@ -51,3 +53,15 @@ def execute(schedule_per_stage, num_stages):
 def compare_gp_vs_1f1b(num_stages: int, num_microbatches: int):
     """返回 (GP 气泡, 1F1B 气泡, GP 峰值 act, 1F1B 峰值 act)"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("06_pipeline_parallelism_1f1b.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

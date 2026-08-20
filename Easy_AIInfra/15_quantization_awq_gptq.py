@@ -16,6 +16,8 @@
 - GPTQ 的 Hessian 构造与误差补偿递推（W -= (W_q - W) @ H / H[j,j]）
 - AWQ 的缩放搜索（grid search s）与等价变换 (W·s 反量化后再 /s)
 - group size 对 4bit 精度影响
+- 提示：torch.linalg.inv 计算 Hessian 逆（GPTQ）
+
 """
 import torch
 
@@ -54,3 +56,15 @@ class W4A16Linear(torch.nn.Module):
 def ppl_compare(layer, X_calib, X_eval):
     """对比 RTN / GPTQ / AWQ 在该层的 PPL 或输出 MSE"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("15_quantization_awq_gptq.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

@@ -15,6 +15,8 @@ DDP 在反向时通过 backward hook 等所有梯度 ready 后触发一次 AllRe
 - Ring-AllReduce 两阶段（scatter-reduce → all-gather）正确性
 - backward hook 触发时机、分桶 overlap
 - 与 gradient accumulation 共存时只在真实 step 的 micro-batch 同步
+- 提示：torch.distributed.init_process_group(backend, rank, world_size) 初始化分布式；torch.distributed.all_reduce 执行规约
+
 """
 import torch
 import torch.distributed as dist
@@ -45,3 +47,15 @@ class DDP:
         对每个 param.grad 调 ring_all_reduce，再 /= world_size 取均值。
         """
         raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("03_ddp_ring_allreduce.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

@@ -15,6 +15,8 @@
 - scale 维度选择（per-tensor/channel/group）对精度影响
 - 反量化时机（是否融合进 GEMM epilogue）
 - 对称 vs 非对称、int8 vs int4
+- 提示：torch.quantize_per_tensor / per_channel 做动态量化
+
 """
 import torch
 import torch.nn as nn
@@ -44,3 +46,15 @@ class W8A16Linear(nn.Module):
 def compare_error(W: torch.Tensor, x: torch.Tensor):
     """返回 per_tensor/per_channel/per_group 三种粒度下与 fp16 的最大误差与显存"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("14_quantization_w8a16.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

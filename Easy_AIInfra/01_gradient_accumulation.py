@@ -15,6 +15,7 @@
 - loss 缩放与等价性、zero_grad 时机
 - 与 DDP（何时同步梯度）、AMP（何时 unscale）的边界
 - 最后一个不满 accumulation_steps 的 batch 处理
+- 提示：需要梯度裁剪时用 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)（在 optimizer.step 前调用）
 """
 import copy
 import torch
@@ -25,9 +26,9 @@ def train_one_epoch(
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
     dataloader,            # yields (x: Tensor[B,...], y: Tensor[B,...])
-    criterion: nn.Module,  # 损失函数，由调用者传入
     accum_steps: int,
-    device: torch.device,
+    criterion: nn.Module = None,  # 损失函数，默认 MSELoss
+    device: torch.device = None,
 ):
     """
     用梯度累积完成一个 epoch。
@@ -36,6 +37,10 @@ def train_one_epoch(
     2. 每 accum_steps 个 micro-batch 才 optimizer.step() + optimizer.zero_grad()
     3. 末尾不足 accum_steps 时也要 step（兜底）
     """
+    if criterion is None:
+        criterion = nn.MSELoss()
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.train()
     for micro_step, (x, y) in enumerate(dataloader):
         x = x.to(device)

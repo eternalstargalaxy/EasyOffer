@@ -16,6 +16,8 @@ batch 内可混用不同 adapter，用 index map 把 token 路由到其 adapter 
 - 共享 base + 分组 LoRA 的计算组织
 - batch 内多 adapter 的 token 路由与分组 GEMM
 - rank、adapter 数对显存/算力的影响、热加载
+- 提示：LoRA 权重 merge/unmerge 用加减操作
+
 """
 import torch
 import torch.nn as nn
@@ -54,3 +56,15 @@ def grouped_lora_gemm(x: torch.Tensor, groups: dict, adapters: dict):
 def mem_throughput_compare(num_adapters: int, rank: int, d: int):
     """返回"合并全权重" vs "共享 base + 分组 LoRA" 的显存与吞吐"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("19_lora_multi_adapter_serve.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

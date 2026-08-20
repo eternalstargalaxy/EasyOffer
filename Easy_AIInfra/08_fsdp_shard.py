@@ -15,6 +15,8 @@ FSDP 是 ZeRO-3 的 PyTorch 原生实现：把模块所有参数拼成一个 fla
 - flat param 拼包/解包与原 param 的 .data 视图同步
 - all-gather（前向/反向前） / reduce-scatter（反向后）交错
 - pre-fetch 与 CPU offload
+- 提示：torch.distributed.all_gather 收集分片参数
+
 """
 import torch
 import torch.nn as nn
@@ -52,3 +54,15 @@ class FSDP(nn.Module):
           3. all-gather 把更新后权重同步给所有卡
         """
         raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("08_fsdp_shard.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

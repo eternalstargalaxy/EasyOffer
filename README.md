@@ -18,7 +18,7 @@ EasyOffer/
 ├── Easy_AIInfra/          # AI Infra 训练/推理优化手撕（DDP/ZeRO/TP/PP/FSDP/KVCache/FlashAttn...）
 ├── Easy_deepseek/         # DeepSeek 模型完整实现与解析（MoE/MLA/MTP...）
 ├── Easy_RL/               # 强化学习对齐（REINFORCE / PPO / GRPO / GSPO / DPO / SimPO）
-├── LLM大厂面经合集/        # 各厂 LLM 岗面经（字节/阿里/腾讯/百度/快手/小米/旷视/蚂蚁/讯飞 + AIInfra专题）
+├── AIInfra面经/            # AIInfra 面试面经（字节/阿里/腾讯/百度/快手/小米/旷视/蚂蚁/讯飞 + AIInfra专题）
 ├── 大厂常见思维题/         # 思维题（小红书/字节 + AIInfra专题）
 ├── hands_dirty.ipynb      # 综合手撕题合集
 └── README.md
@@ -47,7 +47,7 @@ Softmax（朴素/safe/online）、交叉熵（log-sum-exp 稳定实现）、KL �
 REINFORCE（基础策略梯度）、PPO（RLHF 经典）、GRPO（组相对，省 critic）、GSPO（序列级重要性，Qwen3）、DPO（绕过 RM）、SimPO（去 reference），均含题目背景 + 原理 + 考察点 + 测试验证。
 
 ### 📌 面经与思维题
-`LLM大厂面经合集/` 按公司平铺文件（公司前缀_轮次），含 AI Infra 专题面经；`大厂常见思维题/` 收录思维题，含 AI Infra 方向计算题。
+`AIInfra面经/` 每公司一个文件，含 AI Infra 专题面经；`大厂常见思维题/` 收录思维题，含 AI Infra 方向计算题。
 
 ---
 

@@ -15,6 +15,8 @@ GQA 下 KV head 数 < Q head 数，需把 KV 复制/广播到对应 Q head；MLA
 - prefill（[S,H,d] 一次算）vs decode（[1,H,d] 逐 token）形状差异
 - GQA 下 KV head → Q head 的映射（repeat_interleave）
 - 缓存按 (layer, seq) 组织与 append
+- 提示：torch.cat 拼接 KV；torch.tril 生成因果 mask
+
 """
 import torch
 
@@ -51,3 +53,15 @@ def attention_step(q_new: torch.Tensor, kv_cache: KVCache, layer_idx: int,
 def prefill(prompt_ids, model, kv_cache: KVCache):
     """一次性算 prompt 各层 K/V 填入 cache，返回最后一个 token 的 logits"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("09_kv_cache.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

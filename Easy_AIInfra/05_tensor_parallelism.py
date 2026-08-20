@@ -16,6 +16,8 @@
 - 切分维度选择与通信点最小化
 - 行并行前向 all-reduce ↔ 反向 split 的对称性
 - Embedding 按 vocab 维切 + all-reduce
+- 提示：torch.distributed.all_reduce 用于行并行输出聚合
+
 """
 import torch
 import torch.nn as nn
@@ -64,3 +66,15 @@ class VocabParallelEmbedding(nn.Module):
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("05_tensor_parallelism.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

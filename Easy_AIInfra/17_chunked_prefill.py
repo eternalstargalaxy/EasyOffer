@@ -16,6 +16,8 @@ chunk_size 大 → prefill 吞吐高但 decode TPOT 抖动大；小 → 抖动�
 - prefill chunk 与 decode 的优先级与 budget 分配
 - chunk 边界 KV 衔接（前 chunk 末态作为后 chunk 前缀）
 - 对 TTFT（首 token 延迟）与 TPOT（逐 token 延迟）的影响
+- 提示：FlashAttention 分块处理；把长 prompt 拆成 chunk 逐步 prefill
+
 """
 from dataclasses import dataclass
 
@@ -56,3 +58,15 @@ class ChunkedScheduler:
 def ttft_tpot_vs_chunk_size(chunk_sizes: list):
     """返回不同 chunk_size 下的 TTFT/TPOT 曲线"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("17_chunked_prefill.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

@@ -16,6 +16,8 @@
 - 接受/拒绝规则与重采样分布的正确性（证明等价 target）
 - target 并行验证的形状（一次前向算 K+1 个位置）与 KV 复用
 - K 的选择、draft 与 target 的词表对齐
+- 提示：torch.gather 收集接受部分；小模型先跑，大模型验证
+
 """
 import torch
 
@@ -47,3 +49,15 @@ def speculative_step(model_d, model_t, prefix: list, K: int):
 def equivalence_check(model_t):
     """采样大量样本，验证投机采样输出分布与纯 target 采样一致（KL≈0）。"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("13_speculative_decoding.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

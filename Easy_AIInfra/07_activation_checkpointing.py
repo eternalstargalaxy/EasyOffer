@@ -15,6 +15,8 @@ full ckpt：段内全部中间激活都重算；selective ckpt：只重算便宜
 - torch.autograd.Function 的 forward / ctx.save_for_backward / backward
 - RNG 状态保存与恢复（torch.get_rng_state / set_rng_state）
 - 重计算次数 vs 显存折中、selective 的策略
+- 提示：torch.utils.checkpoint.checkpoint(fn, *args) 内置激活重计算；torch.get_rng_state / set_rng_state 恢复 RNG 状态
+
 """
 import torch
 import torch.autograd
@@ -53,3 +55,15 @@ def selective_checkpoint(fn, preserve_fn, *args):
     其余按 full ckpt 重算。
     """
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("07_activation_checkpointing.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

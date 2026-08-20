@@ -16,6 +16,8 @@ DDP 下每卡冗余持有全部 optimizer state / grad / param。ZeRO 依次把�
 - reduce-scatter / all-gather 与 step 的交错顺序
 - ZeRO-3 前向也需 all-gather（参数不全算不了）
 - 三种方式的显存公式与通信量 trade-off
+- 提示：torch.distributed.all_gather / reduce_scatter 用于参数收集/分片
+
 """
 import torch
 import torch.nn as nn
@@ -64,3 +66,15 @@ class Zero3:
 def mem_formula(N, param_cnt, grad_cnt, state_cnt):
     """返回 ZeRO-1/2/3 单卡显存（以元素数计）"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("04_zero_optimizer_sharding.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

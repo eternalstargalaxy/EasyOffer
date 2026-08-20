@@ -16,6 +16,8 @@ prefill（compute-bound、长 prompt）与 decode（memory-bound、逐 token）�
 - prefill/decode 资源画像与隔离收益
 - KV 迁移开销与重叠（迁移与 decode 并行）
 - 实例间路由与负载均衡、迁移时机
+- 提示：prefill 用 TP，decode 用 DP；torch.distributed 管理进程组
+
 """
 from dataclasses import dataclass
 from queue import Queue
@@ -81,3 +83,15 @@ class DistServeController:
 def compare_colocated_vs_disaggregated(num_req: int):
     """返回混部 vs 分离在 P99 TTFT / P99 TPOT / 吞吐 上的对比"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("20_distserve_prefill_decode.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

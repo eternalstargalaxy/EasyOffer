@@ -16,6 +16,8 @@ LRU 淘汰需配合引用计数：被多个在跑序列引用的节点不可驱�
 - radix tree 的插入/匹配/分裂/删除
 - KV block 与树节点的引用计数
 - LRU 淘汰与引用安全
+- 提示：前缀匹配检查 token 序列，LRU 用 OrderedDict
+
 """
 from dataclasses import dataclass
 
@@ -57,3 +59,15 @@ class RadixTree:
 def serve_request(tree: RadixTree, tokens: list, model, block_pool):
     """match -> 复用 KV -> prefill suffix -> insert -> decode"""
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("16_prefix_caching.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

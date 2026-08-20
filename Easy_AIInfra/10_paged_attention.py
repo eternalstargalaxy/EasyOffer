@@ -15,6 +15,8 @@ vLLM 的 PagedAttention 把每个序列的 KV 划成固定大小 block（如 16 
 - block table 与物理块解耦、引用计数
 - 变长访问的 mask（block 内未填满部分 mask 掉）
 - copy-on-write 在共享前缀写入时
+- 提示：block table 用 torch.LongTensor 存储映射
+
 """
 import torch
 
@@ -58,3 +60,15 @@ def paged_attention(q: torch.Tensor, block_table, num_valid_tokens: int,
     做 scaled-dot-product attention，对末 block 未填满部分 mask。
     """
     raise NotImplementedError
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    print("10_paged_attention.py 测试代码：")
+    try:
+        # TODO: 用户实现后可在此调用核心函数验证输出形状与性质
+        pass
+        print("✅ 待实现核心函数后运行验证")
+    except NotImplementedError:
+        print("ℹ 核心函数待实现，可先阅读文件头部背景理解原理")
+    except Exception as e:
+        print(f"❌ 运行错误: {e}")

@@ -15,6 +15,7 @@ bf16 动态范围与 fp32 同（指数位相同），不需要 loss scaling，�
 - fp16 vs bf16 差异（为何 bf16 不需 scaling）
 - inf/nan 检测与"跳过更新"的正确性
 - unscale 时机 vs 梯度裁剪顺序（先 unscale 再 clip 再 step）
+- 提示：torch.autocast(device_type="cuda", dtype=...) 用于自动混合精度前向；梯度裁剪 torch.nn.utils.clip_grad_norm_ 需在 unscale 之后 step 之前调用
 """
 import torch
 import torch.nn as nn
@@ -57,15 +58,20 @@ class AMPScaler:
 
 
 def train_step(model: nn.Module, optimizer, scaler: AMPScaler,
-               criterion: nn.Module,   # 损失函数，由调用者传入
                x: torch.Tensor, y: torch.Tensor,
-               dtype: torch.dtype, device: torch.device):
+               criterion: nn.Module = None,   # 损失函数，默认 MSELoss
+               dtype: torch.dtype = torch.float16,
+               device: torch.device = None):
     """
     1. 用 fp16/bf16 copy master 权重做前向
     2. loss = scaler.scale_loss(criterion(...)); loss.backward()
     3. scaler.step(optimizer, grads)  # 内含 unscale + 更新 + scale 调整
     """
     model.train()
+    if criterion is None:
+        criterion = nn.MSELoss()
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     x = x.to(device)
     y = y.to(device)
 
@@ -85,3 +91,38 @@ def train_step(model: nn.Module, optimizer, scaler: AMPScaler,
         scaler.step(optimizer, grads)
 
     optimizer.zero_grad()
+
+
+# ===== 测试验证 =====
+if __name__ == "__main__":
+    import copy
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # 测试 Scaler 基本逻辑
+    scaler = AMPScaler(init_scale=1024.0)
+    assert abs(scaler.scale_loss(torch.tensor(2.0)).item() - 2048.0) < 1e-6, "scale_loss wrong"
+
+    # 测试溢出检测
+    grads = [torch.randn(4, 4) * 10, torch.tensor([float("nan")])]
+    assert scaler.unscale_(grads) == True, "should detect NaN"
+    print("✅ AMPScaler 基本功能验证通过")
+
+    # 测试 train_step basic flow
+    model = nn.Sequential(nn.Linear(8, 16), nn.ReLU(), nn.Linear(16, 4)).to(device)
+    model.train()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    scaler = AMPScaler()
+    x = torch.randn(2, 8)
+    y = torch.randn(2, 4)
+
+    try:
+        train_step(model, optimizer, scaler, None, x, y, torch.float16, device)
+        print("✅ train_step fp16 执行成功")
+    except NotImplementedError:
+        print("ℹ️ train_step 待实现")
+
+    try:
+        train_step(model, optimizer, scaler, None, x, y, torch.bfloat16, device)
+        print("✅ train_step bf16 执行成功")
+    except NotImplementedError:
+        print("ℹ️ train_step 待实现")
