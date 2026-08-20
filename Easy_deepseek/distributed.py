@@ -66,3 +66,14 @@ def update_distributed_info(new_world_size: int, new_rank: int):
     global world_size, rank
     world_size = new_world_size
     rank = new_rank
+
+
+if __name__ == "__main__":
+    ws, rk = initialize_distributed()
+    assert ws >= 1 and rk >= 0
+    ws2, rk2 = get_distributed_info()
+    assert (ws2, rk2) == (ws, rk)
+    update_distributed_info(4, 2)
+    assert get_distributed_info() == (4, 2)
+    update_distributed_info(1, 0)
+    print("✅ 分布式工具验证通过")

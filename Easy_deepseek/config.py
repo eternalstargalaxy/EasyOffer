@@ -51,3 +51,19 @@ class ModelArgs:
 block_size: int = 128  # 量化操作的块大小
 gemm_impl: Literal["bf16", "fp8"] = "bf16"  # 矩阵乘法的实现类型
 attn_impl: Literal["naive", "absorb"] = "absorb"  # 注意力计算的实现方式
+
+
+if __name__ == "__main__":
+    args = ModelArgs()
+    assert args.dim == 2048
+    assert args.n_layers == 27
+    assert args.n_heads == 16
+    assert args.vocab_size == 102400
+    assert args.n_routed_experts == 64
+    assert args.n_activated_experts == 6
+    assert args.qk_nope_head_dim == 128
+    assert args.qk_rope_head_dim == 64
+    assert args.v_head_dim == 128
+    assert args.kv_lora_rank == 512
+    assert block_size == 128
+    print("✅ ModelArgs 默认配置验证通过")

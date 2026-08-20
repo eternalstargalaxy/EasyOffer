@@ -89,3 +89,15 @@ def apply_rotary_emb(x: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
     
     # 转回原始数据类型
     return x_rotated.to(dtype)
+
+
+if __name__ == "__main__":
+    args = ModelArgs()
+    args.max_seq_len = 128
+    freqs_cis = precompute_freqs_cis(args)
+    assert freqs_cis.shape == (128, args.qk_rope_head_dim // 2)
+    x = torch.randn(1, 10, 4, args.qk_rope_head_dim)
+    x_rot = apply_rotary_emb(x, freqs_cis[:10])
+    assert x_rot.shape == x.shape
+    assert torch.allclose(x.norm(dim=-1), x_rot.norm(dim=-1), atol=1e-5), "RoPE 应保范"
+    print("✅ RoPE 预计算 + 保范性验证通过")

@@ -177,3 +177,38 @@ class Transformer(nn.Module):
             tokens = torch.cat([tokens, next_token], dim=1)
             
         return tokens
+
+
+
+def _small_args():
+    from config import ModelArgs
+    args = ModelArgs()
+    args.dim = 64
+    args.n_heads = 4
+    args.n_layers = 2
+    args.n_dense_layers = 1
+    args.vocab_size = 100
+    args.inter_dim = 128
+    args.moe_inter_dim = 32
+    args.n_routed_experts = 4
+    args.n_shared_experts = 1
+    args.n_activated_experts = 2
+    args.max_batch_size = 2
+    args.max_seq_len = 32
+    args.original_seq_len = 32
+    args.qk_nope_head_dim = 16
+    args.qk_rope_head_dim = 8
+    args.v_head_dim = 16
+    args.kv_lora_rank = 16
+    args.q_lora_rank = 0
+    return args
+
+if __name__ == "__main__":
+    import torch
+    torch.manual_seed(42)
+    args = _small_args()
+    model = Transformer(args)
+    tokens = torch.randint(0, 100, (2, 8))
+    logits = model(tokens)
+    assert logits.shape == (2, 100), f"Transformer logits shape: {logits.shape}"
+    print("✅ Transformer 验证通过")

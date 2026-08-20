@@ -71,3 +71,23 @@ def fp8_gemm(a: torch.Tensor, a_scale: torch.Tensor,
     # 执行矩阵乘法
     # 注意：真实FP8实现应直接在量化域计算，效率更高
     return torch.matmul(a_fp, b_fp.t())
+
+
+if __name__ == "__main__":
+    torch.manual_seed(42)
+    x = torch.randn(4, 128) * 10
+    x_quant, scale = act_quant(x, block_size=128)
+    assert x_quant.dtype == torch.int8
+    assert x_quant.shape == (4, 128)
+    x_dequant = weight_dequant(x_quant, scale, block_size=128)
+    err = (x - x_dequant).abs().max().item()
+    assert err < 0.5, f"量化误差过大: {err}"
+    # fp8_gemm
+    a = torch.randn(4, 128, dtype=torch.int8)
+    a_s = torch.ones(4, 1) * 0.1
+    b = torch.randn(8, 128, dtype=torch.int8)
+    b_s = torch.ones(8, 1) * 0.1
+    out = fp8_gemm(a, a_s, b, b_s)
+    assert out.shape == (4, 8)
+    print(f"量化误差: {err:.6f}")
+    print("✅ 量化/反量化/fp8_gemm 验证通过")

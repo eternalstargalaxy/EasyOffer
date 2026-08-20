@@ -201,3 +201,40 @@ class MLA(nn.Module):
         x = self.wo(x.flatten(2))
         
         return x
+
+
+
+def _small_args():
+    from config import ModelArgs
+    args = ModelArgs()
+    args.dim = 64
+    args.n_heads = 4
+    args.n_layers = 2
+    args.n_dense_layers = 1
+    args.vocab_size = 100
+    args.inter_dim = 128
+    args.moe_inter_dim = 32
+    args.n_routed_experts = 4
+    args.n_shared_experts = 1
+    args.n_activated_experts = 2
+    args.max_batch_size = 2
+    args.max_seq_len = 32
+    args.original_seq_len = 32
+    args.qk_nope_head_dim = 16
+    args.qk_rope_head_dim = 8
+    args.v_head_dim = 16
+    args.kv_lora_rank = 16
+    args.q_lora_rank = 0
+    return args
+
+if __name__ == "__main__":
+    import torch
+    from rotary_embeddings import precompute_freqs_cis
+    torch.manual_seed(42)
+    args = _small_args()
+    attn = MLA(args)
+    freqs_cis = precompute_freqs_cis(args)
+    x = torch.randn(2, 8, 64)
+    out = attn(x, start_pos=0, freqs_cis=freqs_cis[:8])
+    assert out.shape == (2, 8, 64), f"MLA shape: {out.shape}"
+    print("✅ MLA 验证通过")

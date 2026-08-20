@@ -61,7 +61,7 @@ class Gate(nn.Module):
         """
         # 计算每个输入对每个专家的分数
         # scores形状: [batch_size*seq_len, n_routed_experts=256]
-        scores = Linear(x, self.weight)
+        scores = F.linear(x, self.weight)
 
         # 保存原始分数用于后续路由权重
         original_scores = scores.softmax(dim=-1, dtype=torch.float32) if self.score_func == "softmax" else scores.sigmoid()
@@ -252,3 +252,38 @@ class MoE(nn.Module):
         # 合并路由专家和共享专家的结果，恢复原始形状
         # 最终输出: [batch_size, seq_len, dim=7168]
         return (y + z).view(shape)
+
+
+
+def _small_args():
+    from config import ModelArgs
+    args = ModelArgs()
+    args.dim = 64
+    args.n_heads = 4
+    args.n_layers = 2
+    args.n_dense_layers = 1
+    args.vocab_size = 100
+    args.inter_dim = 128
+    args.moe_inter_dim = 32
+    args.n_routed_experts = 4
+    args.n_shared_experts = 1
+    args.n_activated_experts = 2
+    args.max_batch_size = 2
+    args.max_seq_len = 32
+    args.original_seq_len = 32
+    args.qk_nope_head_dim = 16
+    args.qk_rope_head_dim = 8
+    args.v_head_dim = 16
+    args.kv_lora_rank = 16
+    args.q_lora_rank = 0
+    return args
+
+if __name__ == "__main__":
+    import torch
+    torch.manual_seed(42)
+    args = _small_args()
+    moe = MoE(args)
+    x = torch.randn(2, 8, 64)
+    out = moe(x)
+    assert out.shape == (2, 8, 64), f"MoE shape: {out.shape}"
+    print("✅ MoE (detailed) 验证通过")

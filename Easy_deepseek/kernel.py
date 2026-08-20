@@ -83,3 +83,26 @@ def fp8_gemm(a: torch.Tensor, a_scale: torch.Tensor,
     
     # 执行矩阵乘法
     return torch.matmul(a_fp, b_fp)
+
+
+
+if __name__ == "__main__":
+    import torch
+    torch.manual_seed(42)
+    x = torch.randn(4, 128) * 10
+    x_q, scale = act_quant(x, 128)
+    assert x_q.dtype == torch.int8
+    assert x_q.shape == (4, 128)
+    # weight_dequant
+    w = torch.randint(-127, 127, (256, 128), dtype=torch.int8)
+    s = torch.ones(2, 1) * 0.1
+    w_dq = weight_dequant(w, s, 128)
+    assert w_dq.shape == (256, 128)
+    # fp8_gemm
+    a = torch.randint(-127, 127, (4, 128), dtype=torch.int8)
+    a_s = torch.ones(4, 1) * 0.1
+    b = torch.randint(-127, 127, (8, 128), dtype=torch.int8)
+    b_s = torch.ones(8, 1) * 0.1
+    out = fp8_gemm(a, a_s, b, b_s)
+    assert out.shape == (4, 8)
+    print("✅ kernel act_quant + weight_dequant + fp8_gemm 验证通过")

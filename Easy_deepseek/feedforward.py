@@ -67,3 +67,37 @@ class MLP(nn.Module):
         
         # 投影回原始维度
         return self.w2(gated_output)
+
+
+
+def _small_args():
+    from config import ModelArgs
+    args = ModelArgs()
+    args.dim = 64
+    args.n_heads = 4
+    args.n_layers = 2
+    args.n_dense_layers = 1
+    args.vocab_size = 100
+    args.inter_dim = 128
+    args.moe_inter_dim = 32
+    args.n_routed_experts = 4
+    args.n_shared_experts = 1
+    args.n_activated_experts = 2
+    args.max_batch_size = 2
+    args.max_seq_len = 32
+    args.original_seq_len = 32
+    args.qk_nope_head_dim = 16
+    args.qk_rope_head_dim = 8
+    args.v_head_dim = 16
+    args.kv_lora_rank = 16
+    args.q_lora_rank = 0
+    return args
+
+if __name__ == "__main__":
+    import torch
+    torch.manual_seed(42)
+    mlp = MLP(64, 128)
+    x = torch.randn(2, 10, 64)
+    out = mlp(x)
+    assert out.shape == (2, 10, 64), f"MLP shape: {out.shape}"
+    print("✅ MLP 验证通过")

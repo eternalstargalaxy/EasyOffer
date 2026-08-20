@@ -32,21 +32,21 @@ class Gate(nn.Module):
         weight (nn.Parameter): 门控的权重参数
         bias (nn.Parameter): 可选的偏置参数
     """
-    def init(self, args: ModelArgs):
+    def __init__(self, args: ModelArgs):
         """初始化门控机制。参数: args (ModelArgs): 模型配置参数"""
-        super().init()
+        super().__init__()
         self.dim = args.dim
         self.topk = args.n_activated_experts
         self.n_groups = args.n_expert_groups
         self.topk_groups = args.n_limited_groups
         self.score_func = args.score_func
         self.route_scale = args.route_scale
-        self.weight = nn.Parameter(torch.empty(args.n_routed_experts, args.dim))  # 初始化门控权重和偏置
-        self.bias = nn.Parameter(torch.empty(args.n_routed_experts)) if self.dim == 7168 else None  # 特定模型尺寸使用偏置项(这里是针对7B模型)
+        self.weight = nn.Parameter(torch.empty(args.n_routed_experts, args.dim))
+        self.bias = nn.Parameter(torch.empty(args.n_routed_experts)) if self.dim == 7168 else None
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """门控机制的前向传播。参数: x (torch.Tensor): 输入张量 [batch_size, seq_len, dim] 返回: Tuple[torch.Tensor, torch.Tensor]: - 路由权重：每个选定专家的权重 [batch_size, seq_len, topk] - 专家索引：选择的专家ID [batch_size, seq_len, topk]"""
-        scores = Linear(x, self.weight)  # 计算每个输入对每个专家的分数
+        scores = F.linear(x, self.weight)  # 计算每个输入对每个专家的分数
         scores = scores.softmax(dim=-1, dtype=torch.float32) if self.score_func == "softmax" else scores.sigmoid()  # 根据评分函数转换分数
         original_scores = scores  # 保存原始分数用于后续路由权重
         scores = scores + self.bias if self.bias is not None else scores  # 应用偏置(如果有)
@@ -72,9 +72,9 @@ class Expert(nn.Module):
         w2 (nn.Module): 中间维度到输出的投影
         w3 (nn.Module): 门控投影
     """
-    def init(self, dim: int, inter_dim: int):
+    def __init__(self, dim: int, inter_dim: int):
         """初始化专家网络。参数: dim (int): 输入和输出维度 inter_dim (int): 中间隐藏层维度"""
-        super().init()
+        super().__init__()
         self.w1 = Linear(dim, inter_dim)
         self.w2 = Linear(inter_dim, dim)
         self.w3 = Linear(dim, inter_dim)
@@ -99,9 +99,9 @@ class MoE(nn.Module):
         experts (nn.ModuleList): 专家网络列表
         shared_experts (nn.Module): 所有输入共享的专家网络
     """
-    def init(self, args: ModelArgs):
+    def __init__(self, args: ModelArgs):
         """初始化混合专家模型。参数: args (ModelArgs): 模型配置参数"""
-        super().init()
+        super().__init__()
         world_size, rank = get_distributed_info()
         self.dim = args.dim
         assert args.n_routed_experts % world_size == 0, f"Number of experts must be divisible by world size (world_size={world_size})"  # 确保专家数能被进程数整除
@@ -132,4 +132,38 @@ class MoE(nn.Module):
         if world_size > 1:  # 在分布式环境中聚合所有专家的输出
             dist.all_reduce(y)
         return (y + z).view(shape)  # 合并路由专家和共享专家的结果，恢复原始形状
-    
+
+
+
+def _small_args():
+    from config import ModelArgs
+    args = ModelArgs()
+    args.dim = 64
+    args.n_heads = 4
+    args.n_layers = 2
+    args.n_dense_layers = 1
+    args.vocab_size = 100
+    args.inter_dim = 128
+    args.moe_inter_dim = 32
+    args.n_routed_experts = 4
+    args.n_shared_experts = 1
+    args.n_activated_experts = 2
+    args.max_batch_size = 2
+    args.max_seq_len = 32
+    args.original_seq_len = 32
+    args.qk_nope_head_dim = 16
+    args.qk_rope_head_dim = 8
+    args.v_head_dim = 16
+    args.kv_lora_rank = 16
+    args.q_lora_rank = 0
+    return args
+
+if __name__ == "__main__":
+    import torch
+    torch.manual_seed(42)
+    args = _small_args()
+    moe = MoE(args)
+    x = torch.randn(2, 8, 64)
+    out = moe(x)
+    assert out.shape == (2, 8, 64), f"MoE shape: {out.shape}"
+    print("✅ MoE 验证通过")
