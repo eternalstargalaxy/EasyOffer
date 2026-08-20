@@ -24,6 +24,10 @@ DPO(偏好对闭式解,绕过 RM) → SimPO(去 reference,长度归一化)
 | `SimPO.ipynb` | SimPO | 去掉 reference，长度归一化隐式奖励 | Meng 2024 |
 | `RewardModel.ipynb` | Reward Model | Bradley-Terry 偏好模型，RLHF 第一阶段 | InstructGPT 2022 |
 | `RLHF_Pipeline.ipynb` | RLHF Pipeline | SFT → RM → PPO 三阶段完整流程 | InstructGPT 2022 |
+| `A2C.ipynb` | A2C | Actor-Critic，advantage 减方差 | OpenAI 2016 |
+| `KTO.ipynb` | KTO | 前景理论，无需成对偏好数据 | Ethayarajh 2024 |
+| `ORPO.ipynb` | ORPO | SFT + odds ratio 偏好，无需 reference | Hong 2024 |
+| `IterativeDPO.ipynb` | Iterative DPO | 多轮 DPO，每轮 ref=上轮 policy | Self-Play |
 
 ## 算法对比
 

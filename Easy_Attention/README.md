@@ -13,6 +13,9 @@
 | `LoRA.ipynb` | LoRA 低秩适配、B=0 初始化、merge |
 | `FlashAttentionKernel.ipynb` | IO-aware tiling + online softmax，FlashAttention 核心算法 |
 | `SparseAttention.ipynb` | Sliding Window + Global Token 稀疏注意力 |
+| `ALiBi.ipynb` | ALiBi 线性偏置位置编码、无位置嵌入、外推性好 |
+| `AttentionSink.ipynb` | StreamingLLM Attention Sink + 滑动窗口长序列推理 |
+| `QKNorm.ipynb` | QK Normalization (RMSNorm)、稳定 attention score |
 | `test.py` | 关键性质 smoke test |
 
 每个 ipynb 末尾含测试验证 cell。`SelfAttention` 为基础教学版，`MHA` 为工程实现版（含 KV Cache），`FlashAttentionKernel` 为 IO 优化版。

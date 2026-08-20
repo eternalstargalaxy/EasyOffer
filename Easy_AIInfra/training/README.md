@@ -15,5 +15,6 @@
 | `zero_plusplus.py` | ZeRO++ hpZ + qgZ 通信优化 |
 | `megatron_interleaved.py` | Interleaved 1F1B 调度 |
 | `fused_kernels.py` | Fused Adam + Fused LayerNorm |
+| `expert_parallel.py` | Expert Parallel + All-to-All Dispatch + 负载均衡 |
 
 每个文件含【题目】【背景】【输入/输出】【考察点】【测试验证】。

@@ -9,6 +9,9 @@
 | Top-K | `TopK.ipynb` | ❌ | 中 | 通用 |
 | Top-P | `TopP.ipynb` | ❌ | 自适应 | 开放域生成 |
 | 束搜索 | `BeamSearch.ipynb` | ✅ | 可控 | 机器翻译/摘要 |
+| 对比搜索 | `ContrastiveSearch.ipynb` | ✅ | 高 | 兼顾质量与多样性 |
+| 重复惩罚 | `RepetitionPenalty.ipynb` | ❌ | - | 抑制重复 token |
+| LogitsProcessor | `LogitsProcessor.ipynb` | - | - | HF 风格可组合 pipeline |
 
 每个文件末尾含测试验证 cell。
 

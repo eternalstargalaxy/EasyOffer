@@ -97,3 +97,20 @@
 ### 面试追问
 - RingAttention 和 FlashAttention 如何一起用？
 - 激活重计算选 full 还是 selective？
+
+---
+
+## 参考答案要点
+
+### Q1 追问参考答案
+- **为什么 prefill 和 decode 分离？** prefill 计算密集（大矩阵乘），decode 访存密集（小 batch 逐 token）。混合 batch 导致 GPU 利用率低，分离后各自优化。
+- **PagedAttention block size**：太小→映射表大、overhead 高；太大→碎片多。通常 16-32 tokens。
+- **RDMA KV Cache 瓶颈**：带宽（IB 400GB/s vs NVLink 600GB/s），延迟（~5μs/跨节点）。需 KV 压缩或量化。
+
+### Q2 追问参考答案
+- **MoE 用 A2A 而非 AllReduce**：每 token 去不同 expert，数据是 point-to-point 而非 all-to-all-reduce。A2A 天然匹配。
+- **容量因子调参**：1.0-1.5 常用。监控 drop rate，>5% 时增大；expert 利用率 <70% 时减小。
+
+### Q3 追问参考答案
+- **RingAttention + FlashAttention**：RingAttention 跨卡切 seq 维，每卡用 FlashAttention 算本地 block，通信与计算 overlap。
+- **激活重计算选择**：selective（只重算 attention）够用且快；full 在显存极度紧张时用。
