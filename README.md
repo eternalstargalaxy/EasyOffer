@@ -35,10 +35,12 @@ Softmax（朴素/safe/online）、交叉熵（log-sum-exp 稳定实现）、KL �
 ### 📌 Easy_Generator — 解码采样
 贪心搜索、Top-K、Top-P(nucleus)、温度采样，含组合顺序说明。每个文件末尾含测试验证 cell。
 
-### 📌 Easy_AIInfra — 训练/推理优化（20 题）
+### 📌 Easy_AIInfra — 训练/推理优化（28 题）
 训练：梯度累积 / AMP / DDP+RingAllReduce / ZeRO / 张量并行 / 1F1B 流水并行 / 激活重计算 / FSDP
-推理：KV Cache / PagedAttention / FlashAttention / Continuous Batching / 投机采样 / W8A16 / AWQ·GPTQ / Prefix 缓存 / Chunked Prefill
-进阶：MoE all-to-all / 多 LoRA 调度 / DistServe
+推理：KV Cache / PagedAttention / FlashAttention / Continuous Batching / 投机采样 / Eagle / Medusa / 自投机解码
+量化：W8A16 / AWQ·GPTQ / SmoothQuant / 对称vs非对称 / Per-channel vs Per-token
+稀疏：2:4结构化稀疏 / Wanda / SparseGPT
+进阶：MoE all-to-all / 多 LoRA 调度 / DistServe / 动态Rollout
 
 ### 📌 Easy_deepseek — DeepSeek 实现
 模型核心结构完整实现 + DeepSeekMoE / MLA / MTP 等关键模块详细解析。
