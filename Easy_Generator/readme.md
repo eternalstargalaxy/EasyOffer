@@ -8,6 +8,7 @@
 | 温度采样 | `TemperatureSampling.ipynb` | ❌ | T 大则多样 | 调节随机性 |
 | Top-K | `TopK.ipynb` | ❌ | 中 | 通用 |
 | Top-P | `TopP.ipynb` | ❌ | 自适应 | 开放域生成 |
+| 束搜索 | `BeamSearch.ipynb` | ✅ | 可控 | 机器翻译/摘要 |
 
 每个文件末尾含测试验证 cell。
 

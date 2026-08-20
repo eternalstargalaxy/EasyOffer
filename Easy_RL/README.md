@@ -10,6 +10,8 @@ REINFORCE → A2C(加 critic) → PPO(加 clip+多epoch) → GRPO(组内相对,�
 DPO(偏好对闭式解,绕过 RM) → SimPO(去 reference,长度归一化)
 ```
 
+> `RewardModel.ipynb` 和 `RLHF_Pipeline.ipynb` 是 RLHF 的组件与完整流程（SFT → RM → PPO），其余文件为单一算法实现。
+
 ## 文件索引
 
 | 文件 | 算法 | 核心思想 | 来源 |
@@ -20,6 +22,8 @@ DPO(偏好对闭式解,绕过 RM) → SimPO(去 reference,长度归一化)
 | `GSPO.ipynb` | GSPO | 序列级重要性采样，缓解 token 级 clip 长度偏置 | Qwen3 2025 |
 | `DPO.ipynb` | DPO | 绕过 RM，偏好对直接训练 | Rafailov 2023 |
 | `SimPO.ipynb` | SimPO | 去掉 reference，长度归一化隐式奖励 | Meng 2024 |
+| `RewardModel.ipynb` | Reward Model | Bradley-Terry 偏好模型，RLHF 第一阶段 | InstructGPT 2022 |
+| `RLHF_Pipeline.ipynb` | RLHF Pipeline | SFT → RM → PPO 三阶段完整流程 | InstructGPT 2022 |
 
 ## 算法对比
 
