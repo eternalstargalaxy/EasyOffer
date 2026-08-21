@@ -21,7 +21,7 @@
 import torch
 
 
-def symmetric_quantize(x: torch.Tensor, n_bits: int = 8):
+def symmetric_quantize(x: torch.Tensor, n_bits: int = 8) -> tuple:
     """对称量化：q = round(x/scale).clamp(qmin,qmax), scale = max(abs(x)) / qmax"""
     qmax = 2 ** (n_bits - 1) - 1
     scale = x.abs().max() / qmax
@@ -30,7 +30,7 @@ def symmetric_quantize(x: torch.Tensor, n_bits: int = 8):
     return q.to(torch.int8), scale
 
 
-def asymmetric_quantize(x: torch.Tensor, n_bits: int = 8):
+def asymmetric_quantize(x: torch.Tensor, n_bits: int = 8) -> tuple:
     """非对称量化：zero = x.min(), scale = (x.max()-x.min())/(qmax-qmin)"""
     qmin = 0
     qmax = 2 ** n_bits - 1
@@ -43,7 +43,7 @@ def asymmetric_quantize(x: torch.Tensor, n_bits: int = 8):
     return q.to(torch.uint8), scale, zero_point
 
 
-def per_channel_quantize(weight: torch.Tensor, n_bits: int = 8):
+def per_channel_quantize(weight: torch.Tensor, n_bits: int = 8) -> tuple:
     """沿 dim=0 各通道独立量化，返回 scale [out,], q [out,in]"""
     qmax = 2 ** (n_bits - 1) - 1
     scale = weight.abs().max(dim=1).values / qmax
@@ -52,7 +52,7 @@ def per_channel_quantize(weight: torch.Tensor, n_bits: int = 8):
     return q.to(torch.int8), scale
 
 
-def per_token_quantize(activation: torch.Tensor, n_bits: int = 8):
+def per_token_quantize(activation: torch.Tensor, n_bits: int = 8) -> tuple:
     """沿 dim=0 各 token 独立量化，返回 scale [B,1], q [B,in]"""
     qmax = 2 ** (n_bits - 1) - 1
     scale = activation.abs().max(dim=1, keepdim=True).values / qmax
@@ -61,7 +61,7 @@ def per_token_quantize(activation: torch.Tensor, n_bits: int = 8):
     return q.to(torch.int8), scale
 
 
-def dequantize(q: torch.Tensor, scale: float, zero_point: torch.Tensor = None):
+def dequantize(q: torch.Tensor, scale: float, zero_point: torch.Tensor = None) -> torch.Tensor:
     """反量化：x_hat = scale * q + zero_point"""
     if zero_point is not None:
         return q.float() * scale + zero_point

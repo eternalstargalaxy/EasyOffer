@@ -32,7 +32,7 @@ class MTPHead(nn.Module):
         self.ln = nn.LayerNorm(dim)
         self.lm_head = nn.Linear(dim, vocab, bias=False)
 
-    def forward(self, h: torch.Tensor):
+    def forward(self, h: torch.Tensor) -> torch.Tensor:
         return self.lm_head(self.ln(self.proj(h)))
 
 
@@ -49,14 +49,14 @@ class MTPModel(nn.Module):
         ])
         self.num_mtp = num_mtp
 
-    def forward(self, tokens: list):
+    def forward(self, tokens: list) -> tuple:
         h = self.embed(tokens)
         h, _ = self.rnn(h)
         main_logits = self.main_head(h)
         mtp_logits = [head(h) for head in self.mtp_heads]
         return main_logits, mtp_logits
 
-    def loss(self, tokens: list, targets: torch.Tensor):
+    def loss(self, tokens: list, targets: torch.Tensor) -> torch.Tensor:
         """训练 loss：主 head + MTP heads。"""
         main_logits, mtp_logits = self.forward(tokens)
         loss = F.cross_entropy(main_logits[:, :-1].reshape(-1, main_logits.shape[-1]),

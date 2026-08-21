@@ -30,11 +30,11 @@ class TinyLM(nn.Module):
         self.rnn = nn.GRU(hidden, hidden, batch_first=True)
         self.head = nn.Linear(hidden, vocab, bias=False)
 
-    def forward(self, x):
+    def forward(self, x) -> torch.Tensor:
         return self.head(self.rnn(self.embed(x))[0])
 
 
-def sample_one(model, prompt, max_new=5, temperature=1.0):
+def sample_one(model, prompt, max_new=5, temperature=1.0) -> tuple:
     """采样一条序列。"""
     tokens = list(prompt)
     for _ in range(max_new):
@@ -47,7 +47,7 @@ def sample_one(model, prompt, max_new=5, temperature=1.0):
     return tuple(tokens[len(prompt):])
 
 
-def best_of_n(model, prompt, reward_fn, n=4, max_new=5):
+def best_of_n(model, prompt, reward_fn, n=4, max_new=5) -> tuple:
     """Best-of-N：采样 N 条，选 reward 最高的。"""
     candidates = [sample_one(model, prompt, max_new) for _ in range(n)]
     rewards = [reward_fn(c) for c in candidates]
@@ -55,14 +55,14 @@ def best_of_n(model, prompt, reward_fn, n=4, max_new=5):
     return candidates[best_idx], rewards
 
 
-def self_consistency(model, prompt, n=5, max_new=5):
+def self_consistency(model, prompt, n=5, max_new=5) -> tuple:
     """Self-Consistency：多次采样取多数投票。"""
     samples = [sample_one(model, prompt, max_new) for _ in range(n)]
     votes = Counter(samples)
     return votes.most_common(1)[0][0], votes
 
 
-def chain_of_thought(model, prompt, max_new=10):
+def chain_of_thought(model, prompt, max_new=10) -> tuple:
     """CoT：先生成推理链再给答案。"""
     cot_prompt = list(prompt) + [0]
     reasoning = sample_one(model, cot_prompt, max_new=max_new)

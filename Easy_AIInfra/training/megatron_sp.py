@@ -53,14 +53,14 @@ class SequenceParallelLayerNorm(nn.Module):
         return x_normed * self.weight + self.bias
 
 
-def scatter_input(x: torch.Tensor, tp_size: int, rank: int):
+def scatter_input(x: torch.Tensor, tp_size: int, rank: int) -> torch.Tensor:
     """沿 seq 维切分输入，返回本卡的片段。"""
     S = x.shape[1]
     chunk = S // tp_size
     return x[:, rank * chunk:(rank + 1) * chunk, :].contiguous()
 
 
-def gather_output(x_shards: list):
+def gather_output(x_shards: list) -> torch.Tensor:
     """沿 seq 维拼接各卡输出。"""
     return torch.cat(x_shards, dim=1)
 

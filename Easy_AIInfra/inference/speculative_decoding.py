@@ -31,13 +31,13 @@ class TinyLM(nn.Module):
         self.rnn = nn.GRU(hidden, hidden, batch_first=True)
         self.lm_head = nn.Linear(hidden, vocab_size, bias=False)
 
-    def forward(self, tokens: list):
+    def forward(self, tokens: list) -> torch.Tensor:
         h = self.embed(tokens)
         out, _ = self.rnn(h)
         return self.lm_head(out)
 
 
-def draft(model_d: nn.Module, prefix: list, K: int):
+def draft(model_d: nn.Module, prefix: list, K: int) -> tuple:
     """小模型自回归生成 K 个候选 token，记录每步 draft 概率 p_d。"""
     tokens = list(prefix)
     candidates = []
@@ -54,7 +54,7 @@ def draft(model_d: nn.Module, prefix: list, K: int):
     return candidates, torch.stack(draft_probs)
 
 
-def verify(model_t: nn.Module, prefix: list, candidates: list, draft_probs: torch.Tensor):
+def verify(model_t: nn.Module, prefix: list, candidates: list, draft_probs: torch.Tensor) -> tuple:
     """target 并行验证 + 逐位接受/拒绝。返回 accepted_tokens, num_accepted。"""
     full = prefix + candidates
     x = torch.tensor([full], dtype=torch.long)
@@ -81,14 +81,14 @@ def verify(model_t: nn.Module, prefix: list, candidates: list, draft_probs: torc
     return accepted, num_accepted
 
 
-def speculative_step(model_d: nn.Module, model_t: nn.Module, prefix: list, K: int):
+def speculative_step(model_d: nn.Module, model_t: nn.Module, prefix: list, K: int) -> tuple:
     """draft -> verify -> 拼接结果。"""
     candidates, draft_probs = draft(model_d, prefix, K)
     accepted, num_accepted = verify(model_t, prefix, candidates, draft_probs)
     return prefix + accepted, num_accepted
 
 
-def speculative_generate(model_d: nn.Module, model_t: nn.Module, prefix: list, K: int, max_new: int):
+def speculative_generate(model_d: nn.Module, model_t: nn.Module, prefix: list, K: int, max_new: int) -> list:
     """循环投机采样直到生成 max_new 个 token。"""
     tokens = list(prefix)
     target_len = len(prefix) + max_new
@@ -97,7 +97,7 @@ def speculative_generate(model_d: nn.Module, model_t: nn.Module, prefix: list, K
     return tokens[:target_len]
 
 
-def naive_generate(model: nn.Module, prefix: list, max_new: int):
+def naive_generate(model: nn.Module, prefix: list, max_new: int) -> list:
     """纯 target 自回归采样（用于对比验证）。"""
     tokens = list(prefix)
     for _ in range(max_new):

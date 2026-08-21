@@ -34,10 +34,10 @@ class PrefixCache:
         self.misses = 0
 
     @staticmethod
-    def _hash(tokens: list):
+    def _hash(tokens: list) -> str:
         return hashlib.md5(str(tokens).encode()).hexdigest()
 
-    def get(self, prefix: list):
+    def get(self, prefix: list) -> torch.Tensor:
         key = self._hash(prefix)
         if key in self.cache:
             self.cache.move_to_end(key)
@@ -46,14 +46,14 @@ class PrefixCache:
         self.misses += 1
         return None
 
-    def put(self, prefix: list, kv_cache: torch.Tensor):
+    def put(self, prefix: list, kv_cache: torch.Tensor) -> None:
         key = self._hash(prefix)
         self.cache[key] = kv_cache
         self.cache.move_to_end(key)
         if len(self.cache) > self.max_entries:
             self.cache.popitem(last=False)
 
-    def stats(self):
+    def stats(self) -> dict:
         total = self.hits + self.misses
         hit_rate = self.hits / total if total > 0 else 0
         return {"hits": self.hits, "misses": self.misses, "hit_rate": hit_rate}
@@ -64,7 +64,7 @@ class PrefixCachingServer:
         self.model = model
         self.prefix_cache = PrefixCache(max_cache)
 
-    def generate(self, prompt: torch.Tensor, max_new: int = 5):
+    def generate(self, prompt: torch.Tensor, max_new: int = 5) -> list:
         """带 prefix caching 的生成。"""
         cached = self.prefix_cache.get(prompt)
         if cached is not None:
@@ -93,7 +93,7 @@ class TinyLM(nn.Module):
         self.rnn = nn.GRU(hidden, hidden, batch_first=True)
         self.head = nn.Linear(hidden, vocab, bias=False)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.head(self.rnn(self.embed(x))[0])
 
 

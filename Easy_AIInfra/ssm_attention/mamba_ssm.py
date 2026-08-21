@@ -33,7 +33,7 @@ class MambaSSM(nn.Module):
         self.proj_D = nn.Parameter(torch.ones(d_model))
         self.out_proj = nn.Linear(d_model, d_model)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, L, D = x.shape
         N = self.d_state
         delta = torch.softplus(self.proj_delta(x))

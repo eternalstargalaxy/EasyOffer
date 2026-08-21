@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 
 
-def apply_24_sparsity(W: torch.Tensor):
+def apply_24_sparsity(W: torch.Tensor) -> tuple:
     """对权重施加 2:4 稀疏：每 4 个保留 top-2。"""
     out_dim, in_dim = W.shape
     assert in_dim % 4 == 0, "in_dim 必须是 4 的倍数"
@@ -32,7 +32,7 @@ def apply_24_sparsity(W: torch.Tensor):
     return W_sparse.view(out_dim, in_dim), mask.view(out_dim, in_dim)
 
 
-def check_24_sparsity(W: torch.Tensor):
+def check_24_sparsity(W: torch.Tensor) -> bool:
     """验证是否满足 2:4 约束。"""
     out_dim, in_dim = W.shape
     W_reshaped = W.view(out_dim, in_dim // 4, 4)
@@ -40,7 +40,7 @@ def check_24_sparsity(W: torch.Tensor):
     return (nonzero_count <= 2).all().item()
 
 
-def sparse_24_linear(x: torch.Tensor, W: torch.Tensor, bias: torch.Tensor = None):
+def sparse_24_linear(x: torch.Tensor, W: torch.Tensor, bias: torch.Tensor = None) -> torch.Tensor:
     """2:4 稀疏线性层前向。"""
     W_sparse, mask = apply_24_sparsity(W)
     return torch.nn.functional.linear(x, W_sparse, bias)
@@ -52,7 +52,7 @@ class Sparse24Linear(nn.Module):
         self.weight = nn.Parameter(torch.randn(out_dim, in_dim))
         self.bias = nn.Parameter(torch.zeros(out_dim))
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         W_sparse, _ = apply_24_sparsity(self.weight)
         return torch.nn.functional.linear(x, W_sparse, self.bias)
 

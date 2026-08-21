@@ -36,7 +36,7 @@ class KVCache:
         self.v_buf = torch.zeros_like(self.k_buf)
         self.seq_len = 0
 
-    def append(self, layer_idx: int, k: torch.Tensor, v: torch.Tensor):
+    def append(self, layer_idx: int, k: torch.Tensor, v: torch.Tensor) -> None:
         """把新 k/v 写入 buffer 末尾，更新 seq_len。"""
         seq_new = k.shape[0]
         end = self.seq_len + seq_new
@@ -46,7 +46,7 @@ class KVCache:
         if layer_idx == self.num_layers - 1:
             self.seq_len = end
 
-    def get(self, layer_idx: int):
+    def get(self, layer_idx: int) -> tuple:
         """返回该层已写入部分的 K, V: [cur_len, num_kv_heads, d_head]"""
         return (
             self.k_buf[layer_idx, :self.seq_len],
@@ -56,7 +56,7 @@ class KVCache:
 
 def attention_step(q_new: torch.Tensor, kv_cache: KVCache, layer_idx: int,
                    num_q_heads: int, scale: float,
-                   k_new: torch.Tensor = None, v_new: torch.Tensor = None):
+                   k_new: torch.Tensor = None, v_new: torch.Tensor = None) -> torch.Tensor:
     """
     q_new: [num_q_heads, d_head]（decode 单 token）
     1. 取 K,V = kv_cache.get(layer_idx)
@@ -82,7 +82,7 @@ def attention_step(q_new: torch.Tensor, kv_cache: KVCache, layer_idx: int,
     return out
 
 
-def prefill(prompt_ids: torch.Tensor, model: nn.Module, kv_cache: KVCache):
+def prefill(prompt_ids: torch.Tensor, model: nn.Module, kv_cache: KVCache) -> torch.Tensor:
     """一次性算 prompt 各层 K/V 填入 cache，返回最后一个 token 的 logits"""
     with torch.no_grad():
         logits = model(prompt_ids, kv_cache=kv_cache)

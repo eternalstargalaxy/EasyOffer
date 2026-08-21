@@ -21,7 +21,7 @@ import torch.nn as nn
 from collections import defaultdict
 
 
-def moe_dispatch(tokens: torch.Tensor, routing: torch.Tensor, num_experts: int):
+def moe_dispatch(tokens: torch.Tensor, routing: torch.Tensor, num_experts: int) -> tuple:
     """按 routing 把 token 分发到各 expert。"""
     expert_tokens = defaultdict(list)
     expert_indices = defaultdict(list)
@@ -31,7 +31,7 @@ def moe_dispatch(tokens: torch.Tensor, routing: torch.Tensor, num_experts: int):
     return expert_tokens, expert_indices
 
 
-def moe_combine(expert_outputs: dict, expert_indices: dict, num_tokens: int, dim: int):
+def moe_combine(expert_outputs: dict, expert_indices: dict, num_tokens: int, dim: int) -> torch.Tensor:
     """把各 expert 输出按原顺序合并。"""
     output = torch.zeros(num_tokens, dim)
     for expert_id, outs in expert_outputs.items():
@@ -52,7 +52,7 @@ class MoELayer(nn.Module):
         ])
         self.gate = nn.Linear(dim, num_experts)
 
-    def forward(self, tokens: torch.Tensor):
+    def forward(self, tokens: torch.Tensor) -> tuple:
         gate_logits = self.gate(tokens)
         routing = torch.argmax(gate_logits, dim=-1)
         expert_tokens, expert_indices = moe_dispatch(tokens, routing, self.num_experts)
@@ -65,7 +65,7 @@ class MoELayer(nn.Module):
         return output, routing
 
 
-def all_to_all_simulate(local_tokens: torch.Tensor, local_routing: torch.Tensor, num_workers: torch.Tensor):
+def all_to_all_simulate(local_tokens: torch.Tensor, local_routing: torch.Tensor, num_workers: torch.Tensor) -> list:
     """模拟 All-to-All：各卡 token 按 expert 归类发到对应卡。"""
     dispatched = [[] for _ in range(num_workers)]
     for i, eid in enumerate(local_routing.tolist()):

@@ -34,7 +34,7 @@ class ShardedAdam:
         self.v = [torch.zeros_like(p) for p in self.params]
         self.t = 0
 
-    def step(self):
+    def step(self) -> None:
         self.t += 1
         for i, p in enumerate(self.params):
             if p.grad is None:
@@ -46,13 +46,13 @@ class ShardedAdam:
             v_hat = self.v[i] / (1 - self.beta2 ** self.t)
             p.data -= self.lr * m_hat / (v_hat.sqrt() + self.eps)
 
-    def zero_grad(self):
+    def zero_grad(self) -> None:
         for p in self.params:
             if p.grad is not None:
                 p.grad = None
 
 
-def zero2_step(grad_full: torch.Tensor, dp_size: int, rank: int):
+def zero2_step(grad_full: torch.Tensor, dp_size: int, rank: int) -> torch.Tensor:
     """reduce-scatter 梯度，返回本卡 shard（1/N）。单机模拟：直接切片。"""
     shard_size = grad_full.numel() // dp_size
     flat = grad_full.view(-1)
@@ -75,7 +75,7 @@ class Zero3:
         self.shard_size = shard_size
         self._full_param = None
 
-    def gather_param(self):
+    def gather_param(self) -> torch.Tensor:
         """前向/反向前 all-gather 出完整参数。单机模拟：直接拼。"""
         self._full_param = self.param_shard.clone()
         for r in range(1, self.dp_size):
@@ -83,23 +83,23 @@ class Zero3:
             self._full_param = torch.cat([self._full_param, dummy_shard])
         return self._full_param
 
-    def release_param(self):
+    def release_param(self) -> None:
         """计算完释放非本 shard 副本。"""
         self._full_param = None
 
-    def forward(self, *args: torch.Tensor):
+    def forward(self, *args: torch.Tensor) -> torch.Tensor:
         full = self.gather_param()
         result = full
         self.release_param()
         return result
 
-    def backward_step(self, grad_shard: torch.Tensor):
+    def backward_step(self, grad_shard: torch.Tensor) -> torch.Tensor:
         """reduce-scatter grad -> 更新本 shard -> all-gather 同步权重。"""
         self.param_shard -= 0.01 * grad_shard
         return self.gather_param()
 
 
-def mem_formula(N: int, param_cnt: torch.Tensor, grad_cnt: torch.Tensor, state_cnt: torch.Tensor):
+def mem_formula(N: int, param_cnt: torch.Tensor, grad_cnt: torch.Tensor, state_cnt: torch.Tensor) -> dict:
     """返回 ZeRO-1/2/3 单卡显存（以元素数计）"""
     zero1 = param_cnt + grad_cnt + state_cnt / N
     zero2 = param_cnt + grad_cnt / N + state_cnt / N

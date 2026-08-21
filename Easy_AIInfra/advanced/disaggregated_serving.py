@@ -39,10 +39,10 @@ class DisaggregatedServing:
         self.decode_queue = deque()
         self.completed = []
 
-    def add(self, req: torch.Tensor):
+    def add(self, req: torch.Tensor) -> None:
         self.prefill_queue.append(req)
 
-    def step_prefill(self, model: nn.Module):
+    def step_prefill(self, model: nn.Module) -> int:
         """prefill pool 处理请求。"""
         for i in range(len(self.prefill_pool)):
             if self.prefill_pool[i] is None and self.prefill_queue:
@@ -56,7 +56,7 @@ class DisaggregatedServing:
                 self.prefill_pool[i] = None
         return len(self.decode_queue)
 
-    def step_decode(self, model: nn.Module):
+    def step_decode(self, model: nn.Module) -> None:
         """decode pool 逐 token 生成。"""
         for i in range(len(self.decode_pool)):
             if self.decode_pool[i] is None and self.decode_queue:
@@ -74,7 +74,7 @@ class DisaggregatedServing:
                     self.completed.append(req)
                     self.decode_pool[i] = None
 
-    def run(self, model: nn.Module, max_steps: int = 100):
+    def run(self, model: nn.Module, max_steps: int = 100) -> list:
         steps = 0
         while (self.prefill_queue or self.decode_queue or
                any(x is not None for x in self.decode_pool)) and steps < max_steps:
@@ -91,7 +91,7 @@ class TinyLM(torch.nn.Module):
         self.rnn = torch.nn.GRU(hidden, hidden, batch_first=True)
         self.head = torch.nn.Linear(hidden, vocab, bias=False)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.head(self.rnn(self.embed(x))[0])
 
 

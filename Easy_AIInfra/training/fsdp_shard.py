@@ -50,7 +50,7 @@ class FSDP(nn.Module):
         self.shard_size = shard_size
         self._full_param = None
 
-    def _all_gather_full_param(self):
+    def _all_gather_full_param(self) -> torch.Tensor:
         """all-gather 拼出完整 flat，按 offset 还原各 param.data 视图。"""
         self._full_param = self.flat_shard.clone()
         for r in range(1, self.dp_size):
@@ -60,17 +60,17 @@ class FSDP(nn.Module):
             self.params[i].data = self._full_param[offset:offset + size].view(shape).clone()
         return self._full_param
 
-    def _release_non_shard(self):
+    def _release_non_shard(self) -> None:
         """释放非本 shard 的参数副本。"""
         self._full_param = None
 
-    def forward(self, *args: torch.Tensor):
+    def forward(self, *args: torch.Tensor) -> torch.Tensor:
         self._all_gather_full_param()
         result = self.module(*args)
         self._release_non_shard()
         return result
 
-    def backward_step(self, loss: torch.Tensor):
+    def backward_step(self, loss: torch.Tensor) -> None:
         """
         loss.backward() 后：
           1. reduce-scatter 梯度得本 shard 梯度

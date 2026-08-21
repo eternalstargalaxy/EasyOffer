@@ -43,11 +43,11 @@ class MedusaModel(nn.Module):
             MedusaHead(hidden_dim, vocab_size) for _ in range(num_heads)
         ])
 
-    def forward(self, h: torch.Tensor):
+    def forward(self, h: torch.Tensor) -> list:
         """h: [B, D] -> List[Tensor[B, V]]，每个 head 的 logits。"""
         return [head(h) for head in self.heads]
 
-    def predict_tokens(self, h: torch.Tensor, temperature: float = 1.0):
+    def predict_tokens(self, h: torch.Tensor, temperature: float = 1.0) -> tuple:
         """返回每 head 的 top-1 token 和概率。"""
         tokens = []
         probs_list = []
@@ -94,7 +94,7 @@ def medusa_verify(target_logits: torch.Tensor, candidate_tokens: list,
 
 
 def medusa_decode(llm: nn.Module, medusa: MedusaModel, lm_head: nn.Module, h: torch.Tensor,
-                  max_new: int = 10, temperature: float = 1.0):
+                  max_new: int = 10, temperature: float = 1.0) -> list:
     """完整 Medusa 解码循环。"""
     tokens = []
     cur_h = h

@@ -20,7 +20,7 @@
 from collections import deque
 
 
-def schedule_1f1b(num_stages: int, num_microbatches: int, rank: int):
+def schedule_1f1b(num_stages: int, num_microbatches: int, rank: int) -> list:
     """
     返回本 stage 的 op 序列，元素 = ('F', micro_id) 或 ('B', micro_id)。
     warm-up = num_stages - rank - 1 个 F；之后稳态 1F1B；尾部剩余 B。
@@ -42,7 +42,7 @@ def schedule_1f1b(num_stages: int, num_microbatches: int, rank: int):
     return ops
 
 
-def schedule_gp(num_stages: int, num_microbatches: int, rank: int):
+def schedule_gp(num_stages: int, num_microbatches: int, rank: int) -> list:
     """朴素 GP 调度：全部前向后全部反向。"""
     ops = []
     for i in range(num_microbatches):
@@ -52,7 +52,7 @@ def schedule_gp(num_stages: int, num_microbatches: int, rank: int):
     return ops
 
 
-def dependencies(op_seq: torch.Tensor):
+def dependencies(op_seq: torch.Tensor) -> list:
     """
     标注每个 op 的前驱：
       - 同 stage 上一个 op
@@ -68,7 +68,7 @@ def dependencies(op_seq: torch.Tensor):
     return deps
 
 
-def execute(schedule_per_stage: torch.Tensor, num_stages: int):
+def execute(schedule_per_stage: torch.Tensor, num_stages: int) -> dict:
     """
     用队列模拟各 stage 执行，打印时间线，统计气泡占比。
     """
@@ -93,7 +93,7 @@ def execute(schedule_per_stage: torch.Tensor, num_stages: int):
             "bubble_ratio": bubble / (time * num_stages)}
 
 
-def compare_gp_vs_1f1b(num_stages: int, num_microbatches: int):
+def compare_gp_vs_1f1b(num_stages: int, num_microbatches: int) -> tuple:
     """返回 (GP 气泡, 1F1B 气泡, GP 峰值 act, 1F1B 峰值 act)"""
     gp_schedules = [schedule_gp(num_stages, num_microbatches, r) for r in range(num_stages)]
     f1b_schedules = [schedule_1f1b(num_stages, num_microbatches, r) for r in range(num_stages)]

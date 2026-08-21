@@ -24,7 +24,7 @@ import torch.nn.functional as F
 
 
 def auxiliary_loss(routing_weights: torch.Tensor, routing_indices: torch.Tensor,
-                   num_experts: int, alpha: float = 0.01):
+                   num_experts: int, alpha: float = 0.01) -> tuple:
     """
     Switch Transformer auxiliary loss。
     routing_weights: [N, E] softmax 概率
@@ -44,7 +44,7 @@ def auxiliary_loss(routing_weights: torch.Tensor, routing_indices: torch.Tensor,
 
 
 def capacity_check(routing_indices: torch.Tensor, num_experts: int,
-                   capacity: int):
+                   capacity: int) -> tuple:
     """检查各 expert 是否超容量。"""
     overflow = torch.zeros(num_experts, dtype=torch.bool)
     counts = torch.zeros(num_experts, dtype=torch.long)
@@ -55,7 +55,7 @@ def capacity_check(routing_indices: torch.Tensor, num_experts: int,
 
 
 def token_dropping(routing_weights: torch.Tensor, routing_indices: torch.Tensor,
-                   num_experts: int, capacity: int):
+                   num_experts: int, capacity: int) -> torch.Tensor:
     """超容量 token 丢弃。"""
     expert_count = torch.zeros(num_experts, dtype=torch.long)
     keep_mask = torch.ones(routing_indices.shape[0], dtype=torch.bool)
@@ -69,7 +69,7 @@ def token_dropping(routing_weights: torch.Tensor, routing_indices: torch.Tensor,
 
 
 def deepseek_balance_bias(routing_weights: torch.Tensor, expert_load: torch.Tensor,
-                          bias_lr: float = 0.001):
+                          bias_lr: float = 0.001) -> torch.Tensor:
     """DeepSeek aux-loss-free：用偏置调整路由。"""
     target_load = expert_load.mean()
     bias = bias_lr * (expert_load - target_load)

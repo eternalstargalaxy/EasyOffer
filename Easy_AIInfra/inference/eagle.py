@@ -78,7 +78,7 @@ def eagle_verify(target_logits: torch.Tensor, draft_tokens: torch.Tensor,
 
 def eagle_verify_simple(llm_hidden: torch.Tensor, draft_head: EagleDraftHead,
                         lm_head: nn.Linear, h: torch.Tensor,
-                        draft_steps: int = 5, temperature: float = 1.0):
+                        draft_steps: int = 5, temperature: float = 1.0) -> tuple:
     """完整 Eagle 一步：draft -> verify。"""
     draft_tokens, draft_probs, future_h = eagle_draft(draft_head, h, lm_head)
     target_logits = lm_head(future_h) / temperature

@@ -23,7 +23,7 @@ import torch
 
 
 def hpz_all_gather(param_shard: torch.Tensor, local_group_size: int,
-                   cross_group_size: int):
+                   cross_group_size: int) -> torch.Tensor:
     """
     hpZ：节点内 broadcast 替代跨节点 all-gather。
     单机模拟：先跨节点 gather，再节点内 broadcast。
@@ -35,7 +35,7 @@ def hpz_all_gather(param_shard: torch.Tensor, local_group_size: int,
     return broadcasted
 
 
-def qgz_quantize_gradient(grad: torch.Tensor, n_bits: int = 4):
+def qgz_quantize_gradient(grad: torch.Tensor, n_bits: int = 4) -> tuple:
     """
     qgZ：block-wise INT4 量化梯度。
     返回 (quantized_data, scales, zero_points)。
@@ -61,7 +61,7 @@ def qgz_quantize_gradient(grad: torch.Tensor, n_bits: int = 4):
 
 
 def qgz_dequantize(quantized: torch.Tensor, scales: torch.Tensor,
-                   zero_points: torch.Tensor, n: int):
+                   zero_points: torch.Tensor, n: int) -> torch.Tensor:
     """反量化：INT4 -> FP16。"""
     qmax = 2 ** 4 - 1
     block_size = 128

@@ -85,7 +85,7 @@ def flash_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor,
     return O
 
 
-def io_complexity(N: int, d: int, M: int):
+def io_complexity(N: int, d: int, M: int) -> dict:
     """返回朴素 vs Flash 的 HBM IO 量"""
     naive_io = N * N * d + N * d
     flash_io = 2 * N * N * d * d / M

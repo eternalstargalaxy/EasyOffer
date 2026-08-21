@@ -28,7 +28,7 @@ class AttentionLayer(nn.Module):
         self.attn = nn.MultiheadAttention(d_model, num_heads, batch_first=True)
         self.ln = nn.LayerNorm(d_model)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         h, _ = self.attn(self.ln(x), self.ln(x), self.ln(x))
         return x + h
 
@@ -43,7 +43,7 @@ class SSMLayer(nn.Module):
         self.proj_out = nn.Linear(d_model, d_model)
         self.d_state = d_state
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, L, D = x.shape
         N = self.d_state
         h = self.proj_in(x)
@@ -78,7 +78,7 @@ class HybridSSMAttention(nn.Module):
         self.num_ssm = ssm_idx
         self.num_attn = attn_idx
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         for layer in self.layers:
             x = layer(x)
         return x

@@ -41,13 +41,13 @@ class BlockPool:
         self.ref_count[blk] = 1
         return blk
 
-    def free(self, block_id: int):
+    def free(self, block_id: int) -> None:
         """引用计数 -1，归零则归还 free_list。"""
         self.ref_count[block_id] -= 1
         if self.ref_count[block_id] == 0:
             self.free_list.append(block_id)
 
-    def incref(self, block_id: int):
+    def incref(self, block_id: int) -> None:
         self.ref_count[block_id] += 1
 
 
@@ -59,11 +59,11 @@ class PagedKVCache:
         self.block_tables = {}
         self.seq_lens = {}
 
-    def allocate_seq(self, seq_id: int):
+    def allocate_seq(self, seq_id: int) -> None:
         self.block_tables[seq_id] = []
         self.seq_lens[seq_id] = 0
 
-    def append_token(self, seq_id: int, k: torch.Tensor, v: torch.Tensor):
+    def append_token(self, seq_id: int, k: torch.Tensor, v: torch.Tensor) -> None:
         """写入新 token 的 k/v；当前 block 满则向 pool 申请新 block。"""
         pos = self.seq_lens[seq_id]
         block_idx = pos // self.pool.block_size
@@ -75,7 +75,7 @@ class PagedKVCache:
         self.pool.v_pool[phys, block_offset] = v
         self.seq_lens[seq_id] += 1
 
-    def get_logical(self, seq_id: int):
+    def get_logical(self, seq_id: int) -> tuple:
         """按逻辑顺序拼接该序列的所有 k/v。"""
         seq_len = self.seq_lens[seq_id]
         k_parts, v_parts = [], []
@@ -86,14 +86,14 @@ class PagedKVCache:
         v_all = torch.cat(v_parts, dim=0)[:seq_len]
         return k_all, v_all
 
-    def free_seq(self, seq_id: int):
+    def free_seq(self, seq_id: int) -> None:
         """序列结束，释放其所有 block（按引用计数）。"""
         for blk in self.block_tables[seq_id]:
             self.pool.free(blk)
         del self.block_tables[seq_id]
         del self.seq_lens[seq_id]
 
-    def copy_on_write(self, src_id: int, dst_id: int):
+    def copy_on_write(self, src_id: int, dst_id: int) -> None:
         """prefix sharing: dst 引用 src 的 block（写时才分配新 block）。"""
         self.allocate_seq(dst_id)
         for blk in self.block_tables[src_id]:
@@ -103,7 +103,7 @@ class PagedKVCache:
 
 
 def paged_attention(q: torch.Tensor, block_table: list, num_valid_tokens: int,
-                    pool: BlockPool, scale: float):
+                    pool: BlockPool, scale: float) -> torch.Tensor:
     """
     按 block_table 逐 block 取 K/V 拼成 [num_valid_tokens, ...]，
     做 scaled-dot-product attention，对末 block 未填满部分 mask。

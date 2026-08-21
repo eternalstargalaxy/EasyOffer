@@ -21,12 +21,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def phi_elu(x: torch.Tensor):
+def phi_elu(x: torch.Tensor) -> torch.Tensor:
     """ELU+1 核函数：保证非负。"""
     return F.elu(x) + 1
 
 
-def linear_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, phi: torch.Tensor = phi_elu):
+def linear_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, phi: torch.Tensor = phi_elu) -> torch.Tensor:
     """线性注意力：O(n d²) 复杂度。"""
     Q_phi = phi(Q)
     K_phi = phi(K)
@@ -37,7 +37,7 @@ def linear_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, phi: tor
     return y / (normalizer + 1e-8)
 
 
-def linear_attention_causal(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, phi: torch.Tensor = phi_elu):
+def linear_attention_causal(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, phi: torch.Tensor = phi_elu) -> torch.Tensor:
     """因果线性注意力：递推式。"""
     B, L, D = Q.shape
     Q_phi = phi(Q)
@@ -63,7 +63,7 @@ class LinearAttentionLayer(nn.Module):
         self.v_proj = nn.Linear(d_model, d_model)
         self.out_proj = nn.Linear(d_model, d_model)
 
-    def forward(self, x: torch.Tensor, causal: bool = False):
+    def forward(self, x: torch.Tensor, causal: bool = False) -> torch.Tensor:
         Q, K, V = self.q_proj(x), self.k_proj(x), self.v_proj(x)
         if causal:
             y = linear_attention_causal(Q, K, V)

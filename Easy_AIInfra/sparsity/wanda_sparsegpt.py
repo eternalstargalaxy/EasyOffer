@@ -20,14 +20,14 @@ import torch
 import torch.nn.functional as F
 
 
-def magnitude_pruning(W: torch.Tensor, sparsity: float = 0.5):
+def magnitude_pruning(W: torch.Tensor, sparsity: float = 0.5) -> tuple:
     """Magnitude pruning：按 |W| 剪。"""
     threshold = torch.quantile(W.abs().flatten(), sparsity)
     mask = (W.abs() > threshold).float()
     return W * mask, mask
 
 
-def wanda_pruning(W: torch.Tensor, X: torch.Tensor, sparsity: float = 0.5):
+def wanda_pruning(W: torch.Tensor, X: torch.Tensor, sparsity: float = 0.5) -> tuple:
     """Wanda：按 |W| * ||X|| 剪枝。"""
     X_norm = X.abs().mean(dim=0)
     importance = W.abs() * X_norm.unsqueeze(0)
@@ -36,7 +36,7 @@ def wanda_pruning(W: torch.Tensor, X: torch.Tensor, sparsity: float = 0.5):
     return W * mask, mask
 
 
-def sparsegpt_pruning(W: torch.Tensor, X: torch.Tensor, sparsity: float = 0.5):
+def sparsegpt_pruning(W: torch.Tensor, X: torch.Tensor, sparsity: float = 0.5) -> tuple:
     """SparseGPT：Hessian 信息 + 误差补偿。"""
     H = X.t() @ X + 0.01 * torch.eye(X.shape[1]) * (X.t() @ X).diag().mean()
     W_pruned = W.clone()
@@ -59,7 +59,7 @@ def sparsegpt_pruning(W: torch.Tensor, X: torch.Tensor, sparsity: float = 0.5):
     return W_pruned, mask
 
 
-def pruning_error(W: torch.Tensor, W_sparse: torch.Tensor, X: torch.Tensor):
+def pruning_error(W: torch.Tensor, W_sparse: torch.Tensor, X: torch.Tensor) -> float:
     """计算剪枝前后输出 MSE。"""
     y_orig = X @ W.t()
     y_sparse = X @ W_sparse.t()

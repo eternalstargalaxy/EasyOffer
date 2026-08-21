@@ -25,7 +25,7 @@ import torch.nn.functional as F
 def fused_adam_update(param: torch.Tensor, grad: torch.Tensor,
                       m: torch.Tensor, v: torch.Tensor,
                       step: int, lr: float = 1e-3,
-                      betas: tuple = (0.9, 0.999), eps: float = 1e-8):
+                      betas: tuple = (0.9, 0.999), eps: float = 1e-8) -> torch.Tensor:
     """Fused Adam：一次 kernel 完成 m/v 更新 + bias correction + param 更新。"""
     beta1, beta2 = betas
     bias1 = 1 - beta1 ** step
@@ -38,7 +38,7 @@ def fused_adam_update(param: torch.Tensor, grad: torch.Tensor,
 
 
 def fused_layernorm(x: torch.Tensor, weight: torch.Tensor,
-                    bias: torch.Tensor, eps: float = 1e-5):
+                    bias: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
     """Fused LayerNorm：mean/var/normalize/scale 一次完成。"""
     mean = x.mean(dim=-1, keepdim=True)
     var = x.var(dim=-1, keepdim=True, unbiased=False)
@@ -46,7 +46,7 @@ def fused_layernorm(x: torch.Tensor, weight: torch.Tensor,
     return x_normed * weight + bias
 
 
-def fused_mlp(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor = None):
+def fused_mlp(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor = None) -> torch.Tensor:
     """Fused MLP：linear + gelu 融合，省中间 HBM 写入。"""
     logits = F.linear(x, weight, bias)
     return F.gelu(logits)

@@ -21,7 +21,7 @@ import torch
 import torch.nn.functional as F
 
 
-def quantize_kv(kv: torch.Tensor, bits: int = 8):
+def quantize_kv(kv: torch.Tensor, bits: int = 8) -> tuple:
     """KV Cache 量化压缩。"""
     qmax = 2 ** (bits - 1) - 1
     scale = kv.abs().max() / qmax
@@ -30,28 +30,28 @@ def quantize_kv(kv: torch.Tensor, bits: int = 8):
     return kv_int, scale
 
 
-def dequantize_kv(kv_int: torch.Tensor, scale: torch.Tensor):
+def dequantize_kv(kv_int: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
     return kv_int.float() * scale
 
 
-def sliding_window_kv(kv: torch.Tensor, window: int):
+def sliding_window_kv(kv: torch.Tensor, window: int) -> torch.Tensor:
     """滑动窗口：只保留最近 window 个 token。"""
     return kv[-window:]
 
 
-def lru_evict_kv(kv: torch.Tensor, keep: int):
+def lru_evict_kv(kv: torch.Tensor, keep: int) -> torch.Tensor:
     """LRU 驱逐：保留最近 keep 个。"""
     return kv[-keep:]
 
 
-def h2o_evict_kv(kv: torch.Tensor, attention_scores: torch.Tensor, keep: int):
+def h2o_evict_kv(kv: torch.Tensor, attention_scores: torch.Tensor, keep: int) -> torch.Tensor:
     """H2O：根据 attention score 保留 top-k 重要 KV。"""
     importance = attention_scores.sum(dim=0)
     topk_idx = importance.topk(keep).indices.sort().values
     return kv[topk_idx]
 
 
-def low_rank_compress(kv: torch.Tensor, rank: int):
+def low_rank_compress(kv: torch.Tensor, rank: int) -> tuple:
     """低秩压缩：SVD 分解取 top-rank。"""
     U, S, Vh = torch.linalg.svd(kv.float(), full_matrices=False)
     U_r = U[:, :rank]

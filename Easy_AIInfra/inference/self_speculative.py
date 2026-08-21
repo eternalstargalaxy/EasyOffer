@@ -34,7 +34,7 @@ class TransformerLayer(nn.Module):
         self.ln1 = nn.LayerNorm(d_model)
         self.ln2 = nn.LayerNorm(d_model)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         a, _ = self.attn(self.ln1(x), self.ln1(x), self.ln1(x))
         x = x + a
         x = x + self.ffn(self.ln2(x))
@@ -53,7 +53,7 @@ class SelfSpeculativeLLM(nn.Module):
         self.draft_head = nn.Linear(d_model, vocab_size, bias=False)
         self.early_exit = early_exit_layer
 
-    def forward(self, x: torch.Tensor, use_early_exit: bool = False):
+    def forward(self, x: torch.Tensor, use_early_exit: bool = False) -> torch.Tensor:
         h = x
         for i, layer in enumerate(self.layers):
             h = layer(h)
@@ -67,7 +67,7 @@ class SelfSpeculativeLLM(nn.Module):
 
 def self_speculative_step(llm_layers: list, draft_head: nn.Module, lm_head: nn.Module,
                           h: torch.Tensor, early_exit: int,
-                          draft_steps: int = 3):
+                          draft_steps: int = 3) -> tuple:
     """
     1. 前 early_exit 层 -> draft_head 预测 draft_steps 个 token
     2. 剩余层 + lm_head 完整前向验证

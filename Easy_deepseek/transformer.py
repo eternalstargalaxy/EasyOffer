@@ -71,7 +71,7 @@ class Transformer(nn.Module):
         self.register_buffer("freqs_cis", precompute_freqs_cis(args), persistent=False)
 
     @torch.inference_mode()
-    def forward(self, tokens: torch.Tensor, start_pos: int = 0):
+    def forward(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """
         Transformer模型的前向传播(推理模式)。
         
@@ -122,7 +122,7 @@ class Transformer(nn.Module):
         return logits
     
     def generate(self, prompt_tokens: torch.Tensor, max_new_tokens: int, 
-                 temperature: float = 1.0, top_p: float = 0.9):
+                 temperature: float = 1.0, top_p: float = 0.9) -> torch.Tensor:
         """
         使用自回归方式生成文本。
         

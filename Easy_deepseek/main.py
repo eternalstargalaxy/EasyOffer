@@ -74,7 +74,7 @@ def setup_model_args(
         
     return args
 
-def load_model(model: Transformer, checkpoint_path: str):
+def load_model(model: Transformer, checkpoint_path: str) -> None:
     """
     从检查点加载模型权重。
     
@@ -102,7 +102,7 @@ def load_model(model: Transformer, checkpoint_path: str):
     model.load_state_dict(checkpoint)
     print(f"Model loaded from {checkpoint_path}")
 
-def main():
+def main() -> None:
     """主函数，解析命令行参数并执行模型加载和推理"""
     
     # 解析命令行参数
@@ -184,7 +184,7 @@ def main():
     print("Done!")
 
 # ===== 测试验证 =====
-def test_setup_model_args():
+def test_setup_model_args() -> None:
     """测试模型参数配置。"""
     args_7b = setup_model_args("7b", use_moe=True)
     assert args_7b.dim == 4096

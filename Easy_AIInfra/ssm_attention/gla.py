@@ -33,7 +33,7 @@ class GLALayer(nn.Module):
         self.g_proj = nn.Linear(d_model, num_heads)
         self.out_proj = nn.Linear(d_model, d_model)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, L, D = x.shape
         H, Hd = self.num_heads, self.head_dim
         Q = self.q_proj(x).view(B, L, H, Hd)

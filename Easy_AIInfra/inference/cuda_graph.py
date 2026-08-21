@@ -44,7 +44,7 @@ class CUDAGraphRunner:
         with torch.cuda.graph(self.graph):
             self.static_output = model(self.static_input)
 
-    def run(self, input_tensor: torch.Tensor):
+    def run(self, input_tensor: torch.Tensor) -> torch.Tensor:
         """重放 graph，只需拷贝输入到 static buffer"""
         self.static_input.copy_(input_tensor)
         self.graph.replay()

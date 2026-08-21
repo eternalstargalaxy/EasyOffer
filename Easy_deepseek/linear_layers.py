@@ -8,6 +8,8 @@ from torch import nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
+from typing import Optional
+
 from config import block_size, gemm_impl
 from quantization import act_quant, weight_dequant, fp8_gemm
 from distributed import get_distributed_info
@@ -58,7 +60,7 @@ class Linear(nn.Module):
     """
     dtype = torch.bfloat16  # 默认数据类型，可被设置为fp8
 
-    def __init__(self, in_features: int, out_features: int, bias: bool = False, dtype = None):
+    def __init__(self, in_features: int, out_features: int, bias: bool = False, dtype: Optional[torch.dtype] = None):
         """
         初始化线性层。
         
@@ -108,7 +110,7 @@ class ColumnParallelLinear(Linear):
     属性:
         part_out_features (int): 每个进程负责的输出特征数
     """
-    def __init__(self, in_features: int, out_features: int, bias: bool = False, dtype = None):
+    def __init__(self, in_features: int, out_features: int, bias: bool = False, dtype: Optional[torch.dtype] = None):
         """
         初始化列并行线性层。
         
@@ -144,7 +146,7 @@ class RowParallelLinear(Linear):
     属性:
         part_in_features (int): 每个进程负责的输入特征数
     """
-    def __init__(self, in_features: int, out_features: int, bias: bool = False, dtype = None):
+    def __init__(self, in_features: int, out_features: int, bias: bool = False, dtype: Optional[torch.dtype] = None):
         """
         初始化行并行线性层。
         
@@ -293,7 +295,7 @@ class RMSNorm(nn.Module):
         # 初始化缩放参数为1
         self.weight = nn.Parameter(torch.ones(dim))
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         RMSNorm的前向传播。
         

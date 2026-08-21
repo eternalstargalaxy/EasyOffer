@@ -35,7 +35,7 @@ class AMPScaler:
     def scale_loss(self, loss: torch.Tensor) -> torch.Tensor:
         return loss * self.scale
 
-    def unscale_(self, grads: torch.Tensor):
+    def unscale_(self, grads: torch.Tensor) -> bool:
         """原地 grad /= scale；若发现 inf/nan 返回 True（溢出）。"""
         overflow = False
         for grad in grads:
@@ -46,7 +46,7 @@ class AMPScaler:
                 overflow = True
         return overflow
 
-    def step(self, optimizer, grads: torch.Tensor):
+    def step(self, optimizer, grads: torch.Tensor) -> bool:
         """检测溢出 -> 跳过更新、scale *= backoff；否则更新 + 可能增长 scale。"""
         if self.unscale_(grads):
             self.scale *= self.backoff_factor
@@ -65,7 +65,7 @@ def train_step(model: nn.Module, optimizer, scaler: AMPScaler,
                x: torch.Tensor, y: torch.Tensor,
                criterion: nn.Module = None,
                dtype: torch.dtype = torch.float16,
-               device: torch.device = None):
+               device: torch.device = None) -> float:
     """AMP 训练一步：前向 -> scaled loss -> backward -> unscale -> step。"""
     model.train()
     if criterion is None:

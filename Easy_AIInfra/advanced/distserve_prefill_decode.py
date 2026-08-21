@@ -40,7 +40,7 @@ class DistServe:
         self.decode_running = []
         self.completed = []
 
-    def prefill(self, req: torch.Tensor, model: nn.Module):
+    def prefill(self, req: torch.Tensor, model: nn.Module) -> torch.Tensor:
         x = torch.tensor([req.prompt], dtype=torch.long)
         with torch.no_grad():
             logits = model(x)
@@ -49,7 +49,7 @@ class DistServe:
         self.kv_transfer_queue.append(req)
         return logits
 
-    def transfer_kv(self):
+    def transfer_kv(self) -> None:
         """模拟 KV Cache 异步传输。"""
         while self.kv_transfer_queue:
             req = self.kv_transfer_queue.popleft()
@@ -57,7 +57,7 @@ class DistServe:
             req.stage = "decode"
             self.decode_running.append(req)
 
-    def decode_step(self, model: nn.Module):
+    def decode_step(self, model: nn.Module) -> None:
         still = []
         for req in self.decode_running:
             x = torch.tensor([req.kv_cache[-1:]], dtype=torch.long)
@@ -72,7 +72,7 @@ class DistServe:
                 self.completed.append(req)
         self.decode_running = still
 
-    def run(self, reqs: torch.Tensor, model: nn.Module, max_steps: int = 100):
+    def run(self, reqs: torch.Tensor, model: nn.Module, max_steps: int = 100) -> list:
         for r in reqs:
             self.prefill(r, model)
         self.transfer_kv()
@@ -90,7 +90,7 @@ class TinyLM(torch.nn.Module):
         self.rnn = torch.nn.GRU(hidden, hidden, batch_first=True)
         self.head = torch.nn.Linear(hidden, vocab, bias=False)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.head(self.rnn(self.embed(x))[0])
 
 

@@ -32,11 +32,11 @@ class Request:
     stage: str = "waiting"
 
     @property
-    def all_tokens(self):
+    def all_tokens(self) -> list:
         return self.prompt_ids + self.output_ids
 
     @property
-    def is_finished(self):
+    def is_finished(self) -> bool:
         return len(self.output_ids) >= self.max_tokens
 
 
@@ -50,7 +50,7 @@ class Scheduler:
         self.running = []
         self.completed = []
 
-    def add_request(self, req: Request):
+    def add_request(self, req: Request) -> None:
         self.waiting.append(req)
 
     def schedule(self) -> list:
@@ -61,7 +61,7 @@ class Scheduler:
             self.running.append(req)
         return self.running
 
-    def run_step(self, batch: list, model: nn.Module):
+    def run_step(self, batch: list, model: nn.Module) -> None:
         """拼 padded batch 一次前向，各请求独立采样。"""
         if not batch:
             return
@@ -83,7 +83,7 @@ class Scheduler:
                 still_running.append(req)
         self.running = still_running
 
-    def run(self, model: nn.Module, max_steps: int = 1000):
+    def run(self, model: nn.Module, max_steps: int = 1000) -> list:
         steps = 0
         while (self.waiting or self.running) and steps < max_steps:
             batch = self.schedule()
@@ -99,7 +99,7 @@ class TinyLM(nn.Module):
         self.rnn = nn.GRU(hidden, hidden, batch_first=True)
         self.head = nn.Linear(hidden, vocab_size, bias=False)
 
-    def forward(self, tokens: list):
+    def forward(self, tokens: list) -> torch.Tensor:
         return self.head(self.rnn(self.embed(tokens))[0])
 
 

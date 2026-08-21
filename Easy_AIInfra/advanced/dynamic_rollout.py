@@ -28,7 +28,7 @@ class DynamicRollout:
         self.stop_tokens = stop_tokens or []
         self.history = []
 
-    def rollout(self, model: nn.Module, prompt: torch.Tensor):
+    def rollout(self, model: nn.Module, prompt: torch.Tensor) -> tuple:
         """动态 rollout：根据 EOS/stop 提前终止。"""
         tokens = list(prompt)
         while len(tokens) - len(prompt) < self.max_len:
@@ -44,7 +44,7 @@ class DynamicRollout:
         self.history.append(gen_len)
         return tokens, gen_len
 
-    def adaptive_max_len(self, percentile: float = 0.9):
+    def adaptive_max_len(self, percentile: float = 0.9) -> int:
         """根据历史长度自适应调整 max_len。"""
         if not self.history:
             return self.max_len
@@ -60,7 +60,7 @@ class TinyLM(nn.Module):
         self.rnn = nn.GRU(hidden, hidden, batch_first=True)
         self.head = nn.Linear(hidden, vocab, bias=False)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.head(self.rnn(self.embed(x))[0])
 
 

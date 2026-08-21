@@ -19,7 +19,7 @@ import torch
 import torch.nn.functional as F
 
 
-def rtn_quantize(W: torch.Tensor, bits: int = 4, group_size: int = 128):
+def rtn_quantize(W: torch.Tensor, bits: int = 4, group_size: int = 128) -> tuple:
     """Round-to-nearest 基线量化。"""
     qmax = 2 ** (bits - 1) - 1
     groups = (W.shape[1] + group_size - 1) // group_size
@@ -35,7 +35,7 @@ def rtn_quantize(W: torch.Tensor, bits: int = 4, group_size: int = 128):
     return W_q, scales
 
 
-def gptq_quantize(W: torch.Tensor, X: torch.Tensor, bits: int = 4, group_size: int = 128):
+def gptq_quantize(W: torch.Tensor, X: torch.Tensor, bits: int = 4, group_size: int = 128) -> tuple:
     """GPTQ：Hessian 误差补偿逐列量化。"""
     out_dim, in_dim = W.shape
     H = X.t() @ X
@@ -59,7 +59,7 @@ def gptq_quantize(W: torch.Tensor, X: torch.Tensor, bits: int = 4, group_size: i
     return W_q, scales
 
 
-def awq_quantize(W: torch.Tensor, X: torch.Tensor, bits: int = 4, group_size: int = 128):
+def awq_quantize(W: torch.Tensor, X: torch.Tensor, bits: int = 4, group_size: int = 128) -> tuple:
     """AWQ：搜索 per-channel 缩放 s 保护重要通道。"""
     out_dim, in_dim = W.shape
     act_scale = X.abs().mean(dim=0)
@@ -114,7 +114,7 @@ class W4A16Linear(torch.nn.Module):
         return F.linear(x, W_deq)
 
 
-def ppl_compare(W: torch.Tensor, X_calib: torch.Tensor, X_eval: torch.Tensor):
+def ppl_compare(W: torch.Tensor, X_calib: torch.Tensor, X_eval: torch.Tensor) -> dict:
     """对比 RTN / GPTQ / AWQ 的输出 MSE。"""
     y_fp = X_eval @ W.t()
     results = {}

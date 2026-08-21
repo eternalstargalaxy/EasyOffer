@@ -54,7 +54,7 @@ class RowParallelLinear(nn.Module):
             partial = self._all_reduce(partial)
         return partial + self.bias
 
-    def _all_reduce(self, t: torch.Tensor):
+    def _all_reduce(self, t: torch.Tensor) -> torch.Tensor:
         """单机模拟：直接返回（多卡时用 dist.all_reduce）。"""
         return t
 
@@ -67,10 +67,7 @@ class TPMLP(nn.Module):
         self.fc1 = ColumnParallelLinear(dim, hidden, tp_size, rank)
         self.fc2 = RowParallelLinear(hidden, dim, tp_size, rank)
 
-    def forward(self, x: torch.Tensor):
-        h = self.fc1(x)
-        h = F.gelu(h)
-        return self.fc2(h)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
 
 
 class VocabParallelEmbedding(nn.Module):
@@ -94,7 +91,7 @@ class VocabParallelEmbedding(nn.Module):
             out = self._all_reduce(out)
         return out
 
-    def _all_reduce(self, t: torch.Tensor):
+    def _all_reduce(self, t: torch.Tensor) -> torch.Tensor:
         return t
 
 

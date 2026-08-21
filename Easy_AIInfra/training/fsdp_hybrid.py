@@ -27,7 +27,7 @@ ShardInfo = namedtuple("ShardInfo", ["strategy", "local_rank", "node_id",
 
 
 def hybrid_fsdp_setup(model: nn.Module, local_rank: int,
-                      local_world: int, global_world: int):
+                      local_world: int, global_world: int) -> ShardInfo:
     """
     Hybrid Shard 设置：
     - 节点内(local_group): DDP，全量参数
@@ -62,7 +62,7 @@ class CPUOffloadOptimizer:
         self.cpu_v = [torch.zeros_like(p, device="cpu") for p in self.params]
         self.t = 0
 
-    def step(self):
+    def step(self) -> None:
         self.t += 1
         for i, p in enumerate(self.params):
             if p.grad is None:
@@ -78,7 +78,7 @@ class CPUOffloadOptimizer:
             p.data -= update.to(p.device)
 
 
-def cpu_offload_step(optimizer: CPUOffloadOptimizer, gpu_params: torch.Tensor, cpu_states: torch.Tensor):
+def cpu_offload_step(optimizer: CPUOffloadOptimizer, gpu_params: torch.Tensor, cpu_states: torch.Tensor) -> None:
     """CPU offload 更新一步：load state -> update -> offload。"""
     optimizer.step()
 

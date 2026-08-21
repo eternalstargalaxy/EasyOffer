@@ -28,7 +28,7 @@ def compute_smooth_scale(X_absmax: torch.Tensor, W_absmax: torch.Tensor,
 
 
 def smooth_quantize_weight(weight: torch.Tensor, scale: torch.Tensor,
-                           n_bits: int = 8):
+                           n_bits: int = 8) -> tuple:
     """W_smooth = diag(scale)*W; 对称量化到 INT8"""
     qmax = 2 ** (n_bits - 1) - 1
     W_smooth = weight * scale.unsqueeze(0)
@@ -39,7 +39,7 @@ def smooth_quantize_weight(weight: torch.Tensor, scale: torch.Tensor,
 
 
 def smooth_quantize_activation(X: torch.Tensor, scale: torch.Tensor,
-                               n_bits: int = 8):
+                               n_bits: int = 8) -> tuple:
     """X_smooth = X * diag(scale)^-1; 对称量化到 INT8"""
     qmax = 2 ** (n_bits - 1) - 1
     X_smooth = X / scale.unsqueeze(0)
@@ -49,7 +49,7 @@ def smooth_quantize_activation(X: torch.Tensor, scale: torch.Tensor,
     return X_int.to(torch.int8), x_scale
 
 
-def smooth_quant_forward(X_int: torch.Tensor, x_scale: torch.Tensor, W_int: torch.Tensor, w_scale: torch.Tensor, scale: float):
+def smooth_quant_forward(X_int: torch.Tensor, x_scale: torch.Tensor, W_int: torch.Tensor, w_scale: torch.Tensor, scale: float) -> torch.Tensor:
     """反量化 + 前向：验证等价性。"""
     X_smooth = X_int.float() * x_scale
     W_smooth = W_int.float() * w_scale.unsqueeze(1)

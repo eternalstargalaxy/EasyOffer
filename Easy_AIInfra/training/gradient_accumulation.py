@@ -29,7 +29,7 @@ def train_one_epoch(
     accum_steps: int,
     criterion: nn.Module = None,  # 损失函数，默认 MSELoss
     device: torch.device = None,
-):
+) -> None:
     """
     用梯度累积完成一个 epoch。
     要求：
@@ -57,7 +57,7 @@ def train_one_epoch(
 
 
 # ===== 等价性自检（可选）=====
-def equivalence_check():
+def equivalence_check() -> None:
     """
     对比：accum_steps=K 的小 batch 累积  vs  一次拼成大 batch
     断言两者单步更新后的权重在 fp 误差内一致。

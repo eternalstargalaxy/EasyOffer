@@ -21,7 +21,7 @@ import torch
 import torch.nn as nn
 
 
-def ring_all_reduce_simulate(tensors: list, average: bool = True):
+def ring_all_reduce_simulate(tensors: list, average: bool = True) -> list:
     """
     单机模拟 Ring-AllReduce：输入 N 个同形状 tensor，返回规约后的 N 个副本。
     阶段一 scatter-reduce：N-1 步累加
@@ -70,10 +70,10 @@ class DDP:
         self.world_size = world_size
         self.rank = rank
 
-    def forward(self, *args: torch.Tensor):
+    def forward(self, *args: torch.Tensor) -> torch.Tensor:
         return self.model(*args)
 
-    def backward_and_sync(self, loss: torch.Tensor, all_grads: list):
+    def backward_and_sync(self, loss: torch.Tensor, all_grads: list) -> list:
         """
         loss.backward() 后梯度已就位；
         对每个 param.grad 调 ring_all_reduce，再 /= world_size 取均值。
