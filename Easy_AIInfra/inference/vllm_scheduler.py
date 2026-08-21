@@ -87,7 +87,7 @@ class VLLMScheduler:
             "preempted": preempted,
         }
 
-    def step_done(self, prefill_list, model=None):
+    def step_done(self, prefill_list: torch.Tensor, model: nn.Module = None):
         """prefill 完成的请求转入 running decode。"""
         for req in prefill_list:
             req.state = "decode"

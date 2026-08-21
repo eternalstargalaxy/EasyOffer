@@ -27,17 +27,17 @@ from collections import OrderedDict
 class PrefixCache:
     """LRU prefix KV Cache。"""
 
-    def __init__(self, max_entries=16):
+    def __init__(self, max_entries: int = 16):
         self.cache = OrderedDict()
         self.max_entries = max_entries
         self.hits = 0
         self.misses = 0
 
     @staticmethod
-    def _hash(tokens):
+    def _hash(tokens: list):
         return hashlib.md5(str(tokens).encode()).hexdigest()
 
-    def get(self, prefix):
+    def get(self, prefix: list):
         key = self._hash(prefix)
         if key in self.cache:
             self.cache.move_to_end(key)
@@ -46,7 +46,7 @@ class PrefixCache:
         self.misses += 1
         return None
 
-    def put(self, prefix, kv_cache):
+    def put(self, prefix: list, kv_cache: torch.Tensor):
         key = self._hash(prefix)
         self.cache[key] = kv_cache
         self.cache.move_to_end(key)
@@ -60,11 +60,11 @@ class PrefixCache:
 
 
 class PrefixCachingServer:
-    def __init__(self, model, max_cache=16):
+    def __init__(self, model: nn.Module, max_cache: int = 16):
         self.model = model
         self.prefix_cache = PrefixCache(max_cache)
 
-    def generate(self, prompt, max_new=5):
+    def generate(self, prompt: torch.Tensor, max_new: int = 5):
         """带 prefix caching 的生成。"""
         cached = self.prefix_cache.get(prompt)
         if cached is not None:
@@ -87,13 +87,13 @@ class PrefixCachingServer:
 
 
 class TinyLM(nn.Module):
-    def __init__(self, vocab, hidden=32):
+    def __init__(self, vocab: int, hidden: int = 32):
         super().__init__()
         self.embed = nn.Embedding(vocab, hidden)
         self.rnn = nn.GRU(hidden, hidden, batch_first=True)
         self.head = nn.Linear(hidden, vocab, bias=False)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return self.head(self.rnn(self.embed(x))[0])
 
 

@@ -21,7 +21,7 @@ import torch
 import torch.nn.functional as F
 
 
-def online_softmax_attention(qi, ki, vi, mi, li, oi, scale):
+def online_softmax_attention(qi: torch.Tensor, ki: torch.Tensor, vi: torch.Tensor, mi: torch.Tensor, li: torch.Tensor, oi: torch.Tensor, scale: float):
     """online softmax 增量更新：返回更新后的 m, l, O。"""
     s = torch.matmul(qi, ki.transpose(-2, -1)) * scale
     m_block = s.max(dim=-1).values
@@ -33,7 +33,7 @@ def online_softmax_attention(qi, ki, vi, mi, li, oi, scale):
     return m_new, l_new, o_new
 
 
-def ring_attention_block(Q, K, V, rank: int, world_size: int):
+def ring_attention_block(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, rank: int, world_size: int):
     """
     单机模拟 RingAttention：把 Q/K/V 沿 seq 维切成 world_size 块，
     模拟各卡环形传递 K/V 块并增量更新 attention。
@@ -63,7 +63,7 @@ def ring_attention_block(Q, K, V, rank: int, world_size: int):
     return outputs
 
 
-def naive_attention(Q, K, V):
+def naive_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor):
     """朴素全注意力，用于验证。"""
     d = Q.shape[-1]
     scale = 1.0 / (d ** 0.5)

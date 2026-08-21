@@ -32,17 +32,17 @@ class Request:
 
 
 class DisaggregatedServing:
-    def __init__(self, prefill_pool_size=2, decode_pool_size=4):
+    def __init__(self, prefill_pool_size: int = 2, decode_pool_size: int = 4):
         self.prefill_pool = [None] * prefill_pool_size
         self.decode_pool = [None] * decode_pool_size
         self.prefill_queue = deque()
         self.decode_queue = deque()
         self.completed = []
 
-    def add(self, req):
+    def add(self, req: torch.Tensor):
         self.prefill_queue.append(req)
 
-    def step_prefill(self, model):
+    def step_prefill(self, model: nn.Module):
         """prefill pool 处理请求。"""
         for i in range(len(self.prefill_pool)):
             if self.prefill_pool[i] is None and self.prefill_queue:
@@ -56,7 +56,7 @@ class DisaggregatedServing:
                 self.prefill_pool[i] = None
         return len(self.decode_queue)
 
-    def step_decode(self, model):
+    def step_decode(self, model: nn.Module):
         """decode pool 逐 token 生成。"""
         for i in range(len(self.decode_pool)):
             if self.decode_pool[i] is None and self.decode_queue:
@@ -74,7 +74,7 @@ class DisaggregatedServing:
                     self.completed.append(req)
                     self.decode_pool[i] = None
 
-    def run(self, model, max_steps=100):
+    def run(self, model: nn.Module, max_steps: int = 100):
         steps = 0
         while (self.prefill_queue or self.decode_queue or
                any(x is not None for x in self.decode_pool)) and steps < max_steps:
@@ -85,13 +85,13 @@ class DisaggregatedServing:
 
 
 class TinyLM(torch.nn.Module):
-    def __init__(self, vocab, hidden=32):
+    def __init__(self, vocab: int, hidden: int = 32):
         super().__init__()
         self.embed = torch.nn.Embedding(vocab, hidden)
         self.rnn = torch.nn.GRU(hidden, hidden, batch_first=True)
         self.head = torch.nn.Linear(hidden, vocab, bias=False)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return self.head(self.rnn(self.embed(x))[0])
 
 

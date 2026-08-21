@@ -27,7 +27,7 @@ class ExpertParallelMoE(nn.Module):
     假设: world_size 个 GPU, 每个 GPU 持有 n_experts/world_size 个专家
     """
 
-    def __init__(self, dim, n_experts, n_local_experts, top_k=2):
+    def __init__(self, dim: int, n_experts: int, n_local_experts: torch.Tensor, top_k: int = 2):
         super().__init__()
         self.dim = dim
         self.n_experts = n_experts
@@ -41,14 +41,14 @@ class ExpertParallelMoE(nn.Module):
         # Router (gate)
         self.gate = nn.Linear(dim, n_experts)
 
-    def route(self, x):
+    def route(self, x: torch.Tensor):
         """路由: 决定每个 token 去哪个专家"""
         logits = self.gate(x)  # (..., n_experts)
         weights, indices = torch.topk(logits.softmax(dim=-1), self.top_k, dim=-1)
         weights = weights / weights.sum(dim=-1, keepdim=True)  # 归一化
         return weights, indices
 
-    def all_to_all_dispatch(self, x, indices):
+    def all_to_all_dispatch(self, x: torch.Tensor, indices: list):
         """
         All-to-All dispatch: 将 token 发送到对应专家所在 GPU
         简化模拟: 不做真实通信，只按 expert_id 分组
@@ -63,7 +63,7 @@ class ExpertParallelMoE(nn.Module):
                 dispatched[eid] = x[mask]
         return dispatched
 
-    def all_to_all_combine(self, outputs, x_shape, weights, indices):
+    def all_to_all_combine(self, outputs: torch.Tensor, x_shape: torch.Tensor, weights: torch.Tensor, indices: list):
         """All-to-All combine: 将专家输出收集回来"""
         result = torch.zeros(x_shape, device=next(self.parameters()).device)
         local_expert_id = indices % self.n_local
@@ -72,7 +72,7 @@ class ExpertParallelMoE(nn.Module):
             result[mask] += out * weights[mask].unsqueeze(-1)
         return result
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         weights, indices = self.route(x)
         # Dispatch
         dispatched = self.all_to_all_dispatch(x, indices)
@@ -84,7 +84,7 @@ class ExpertParallelMoE(nn.Module):
         result = self.all_to_all_combine(outputs, x.shape, weights, indices)
         return result
 
-    def auxiliary_loss(self, x, alpha=0.01):
+    def auxiliary_loss(self, x: torch.Tensor, alpha: float = 0.01):
         """负载均衡 auxiliary loss"""
         logits = self.gate(x)
         probs = logits.softmax(dim=-1)

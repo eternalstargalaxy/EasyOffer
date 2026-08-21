@@ -42,7 +42,7 @@ def moe_combine(expert_outputs: dict, expert_indices: dict, num_tokens: int, dim
 
 
 class MoELayer(nn.Module):
-    def __init__(self, dim, num_experts, capacity=4):
+    def __init__(self, dim: int, num_experts: torch.Tensor, capacity: int = 4):
         super().__init__()
         self.dim = dim
         self.num_experts = num_experts
@@ -65,7 +65,7 @@ class MoELayer(nn.Module):
         return output, routing
 
 
-def all_to_all_simulate(local_tokens, local_routing, num_workers):
+def all_to_all_simulate(local_tokens: torch.Tensor, local_routing: torch.Tensor, num_workers: torch.Tensor):
     """模拟 All-to-All：各卡 token 按 expert 归类发到对应卡。"""
     dispatched = [[] for _ in range(num_workers)]
     for i, eid in enumerate(local_routing.tolist()):

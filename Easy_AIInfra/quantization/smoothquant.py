@@ -49,7 +49,7 @@ def smooth_quantize_activation(X: torch.Tensor, scale: torch.Tensor,
     return X_int.to(torch.int8), x_scale
 
 
-def smooth_quant_forward(X_int, x_scale, W_int, w_scale, scale):
+def smooth_quant_forward(X_int: torch.Tensor, x_scale: torch.Tensor, W_int: torch.Tensor, w_scale: torch.Tensor, scale: float):
     """反量化 + 前向：验证等价性。"""
     X_smooth = X_int.float() * x_scale
     W_smooth = W_int.float() * w_scale.unsqueeze(1)

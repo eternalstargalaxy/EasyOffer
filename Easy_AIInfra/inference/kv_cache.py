@@ -25,7 +25,7 @@ class KVCache:
     """预分配式多层 KV Cache。"""
 
     def __init__(self, num_layers: int, num_kv_heads: int, d_head: int,
-                 max_seq_len: int, dtype=torch.float32):
+                 max_seq_len: int, dtype: torch.dtype = torch.float32):
         self.num_layers = num_layers
         self.num_kv_heads = num_kv_heads
         self.d_head = d_head
@@ -55,7 +55,8 @@ class KVCache:
 
 
 def attention_step(q_new: torch.Tensor, kv_cache: KVCache, layer_idx: int,
-                   num_q_heads: int, scale: float, k_new=None, v_new=None):
+                   num_q_heads: int, scale: float,
+                   k_new: torch.Tensor = None, v_new: torch.Tensor = None):
     """
     q_new: [num_q_heads, d_head]（decode 单 token）
     1. 取 K,V = kv_cache.get(layer_idx)
@@ -81,7 +82,7 @@ def attention_step(q_new: torch.Tensor, kv_cache: KVCache, layer_idx: int,
     return out
 
 
-def prefill(prompt_ids, model, kv_cache: KVCache):
+def prefill(prompt_ids: torch.Tensor, model: nn.Module, kv_cache: KVCache):
     """一次性算 prompt 各层 K/V 填入 cache，返回最后一个 token 的 logits"""
     with torch.no_grad():
         logits = model(prompt_ids, kv_cache=kv_cache)

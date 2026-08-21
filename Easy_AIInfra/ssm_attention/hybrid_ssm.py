@@ -23,18 +23,18 @@ import torch.nn.functional as F
 
 
 class AttentionLayer(nn.Module):
-    def __init__(self, d_model, num_heads=4):
+    def __init__(self, d_model: int, num_heads: int = 4):
         super().__init__()
         self.attn = nn.MultiheadAttention(d_model, num_heads, batch_first=True)
         self.ln = nn.LayerNorm(d_model)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         h, _ = self.attn(self.ln(x), self.ln(x), self.ln(x))
         return x + h
 
 
 class SSMLayer(nn.Module):
-    def __init__(self, d_model, d_state=16):
+    def __init__(self, d_model: int, d_state: int = 16):
         super().__init__()
         self.proj_in = nn.Linear(d_model, d_model)
         self.proj_A = nn.Linear(d_model, d_state)
@@ -43,7 +43,7 @@ class SSMLayer(nn.Module):
         self.proj_out = nn.Linear(d_model, d_model)
         self.d_state = d_state
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         B, L, D = x.shape
         N = self.d_state
         h = self.proj_in(x)
@@ -61,7 +61,7 @@ class SSMLayer(nn.Module):
 
 
 class HybridSSMAttention(nn.Module):
-    def __init__(self, d_model, num_layers=8, ssm_ratio=0.75, num_heads=4):
+    def __init__(self, d_model: int, num_layers: int = 8, ssm_ratio: float = 0.75, num_heads: int = 4):
         super().__init__()
         num_ssm = int(num_layers * ssm_ratio)
         num_attn = num_layers - num_ssm
@@ -78,7 +78,7 @@ class HybridSSMAttention(nn.Module):
         self.num_ssm = ssm_idx
         self.num_attn = attn_idx
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         for layer in self.layers:
             x = layer(x)
         return x

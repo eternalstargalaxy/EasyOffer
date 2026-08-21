@@ -25,7 +25,7 @@ import torch.nn as nn
 class ShardedAdam:
     """ZeRO-1：只为本 param shard 维护 m/v"""
 
-    def __init__(self, params_shard, lr=1e-3, betas=(0.9, 0.999), eps=1e-8):
+    def __init__(self, params_shard: torch.Tensor, lr: float = 1e-3, betas: torch.Tensor = (0.9, 0.999: torch.Tensor):
         self.params = list(params_shard)
         self.lr = lr
         self.beta1, self.beta2 = betas
@@ -52,7 +52,7 @@ class ShardedAdam:
                 p.grad = None
 
 
-def zero2_step(grad_full, dp_size, rank):
+def zero2_step(grad_full: torch.Tensor, dp_size: int, rank: int):
     """reduce-scatter 梯度，返回本卡 shard（1/N）。单机模拟：直接切片。"""
     shard_size = grad_full.numel() // dp_size
     flat = grad_full.view(-1)
@@ -87,19 +87,19 @@ class Zero3:
         """计算完释放非本 shard 副本。"""
         self._full_param = None
 
-    def forward(self, *args):
+    def forward(self, *args: torch.Tensor):
         full = self.gather_param()
         result = full
         self.release_param()
         return result
 
-    def backward_step(self, grad_shard):
+    def backward_step(self, grad_shard: torch.Tensor):
         """reduce-scatter grad -> 更新本 shard -> all-gather 同步权重。"""
         self.param_shard -= 0.01 * grad_shard
         return self.gather_param()
 
 
-def mem_formula(N, param_cnt, grad_cnt, state_cnt):
+def mem_formula(N: int, param_cnt: torch.Tensor, grad_cnt: torch.Tensor, state_cnt: torch.Tensor):
     """返回 ZeRO-1/2/3 单卡显存（以元素数计）"""
     zero1 = param_cnt + grad_cnt + state_cnt / N
     zero2 = param_cnt + grad_cnt / N + state_cnt / N

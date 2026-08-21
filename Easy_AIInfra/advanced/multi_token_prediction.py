@@ -26,20 +26,20 @@ import torch.nn.functional as F
 class MTPHead(nn.Module):
     """单个 MTP head：预测第 k 步未来 token。"""
 
-    def __init__(self, dim, vocab):
+    def __init__(self, dim: int, vocab: int):
         super().__init__()
         self.proj = nn.Linear(dim, dim)
         self.ln = nn.LayerNorm(dim)
         self.lm_head = nn.Linear(dim, vocab, bias=False)
 
-    def forward(self, h):
+    def forward(self, h: torch.Tensor):
         return self.lm_head(self.ln(self.proj(h)))
 
 
 class MTPModel(nn.Module):
     """Backbone + k 个 MTP head。"""
 
-    def __init__(self, dim, vocab, num_mtp=3):
+    def __init__(self, dim: int, vocab: int, num_mtp: int = 3):
         super().__init__()
         self.embed = nn.Embedding(vocab, dim)
         self.rnn = nn.GRU(dim, dim, batch_first=True)
@@ -49,14 +49,14 @@ class MTPModel(nn.Module):
         ])
         self.num_mtp = num_mtp
 
-    def forward(self, tokens):
+    def forward(self, tokens: list):
         h = self.embed(tokens)
         h, _ = self.rnn(h)
         main_logits = self.main_head(h)
         mtp_logits = [head(h) for head in self.mtp_heads]
         return main_logits, mtp_logits
 
-    def loss(self, tokens, targets):
+    def loss(self, tokens: list, targets: torch.Tensor):
         """训练 loss：主 head + MTP heads。"""
         main_logits, mtp_logits = self.forward(tokens)
         loss = F.cross_entropy(main_logits[:, :-1].reshape(-1, main_logits.shape[-1]),

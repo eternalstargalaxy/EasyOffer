@@ -102,7 +102,7 @@ class PagedKVCache:
         self.seq_lens[dst_id] = self.seq_lens[src_id]
 
 
-def paged_attention(q: torch.Tensor, block_table, num_valid_tokens: int,
+def paged_attention(q: torch.Tensor, block_table: list, num_valid_tokens: int,
                     pool: BlockPool, scale: float):
     """
     按 block_table 逐 block 取 K/V 拼成 [num_valid_tokens, ...]，

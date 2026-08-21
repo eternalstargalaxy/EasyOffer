@@ -21,33 +21,33 @@ import torch.nn.functional as F
 
 
 class LoRAAdapter(nn.Module):
-    def __init__(self, in_dim, out_dim, rank=8):
+    def __init__(self, in_dim: int, out_dim: int, rank: int = 8):
         super().__init__()
         self.A = nn.Linear(in_dim, rank, bias=False)
         self.B = nn.Linear(rank, out_dim, bias=False)
         nn.init.zeros_(self.B.weight)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return self.B(self.A(x))
 
 
 class MultiLoRALinear(nn.Module):
     """共享 base weight + 多 LoRA adapter。"""
 
-    def __init__(self, in_dim, out_dim, adapter_names, rank=8):
+    def __init__(self, in_dim: int, out_dim: int, adapter_names: torch.Tensor, rank: int = 8):
         super().__init__()
         self.base = nn.Linear(in_dim, out_dim)
         self.adapters = nn.ModuleDict({
             name: LoRAAdapter(in_dim, out_dim, rank) for name in adapter_names
         })
 
-    def forward(self, x, adapter_name: str = None):
+    def forward(self, x: torch.Tensor, adapter_name: str = None):
         out = self.base(x)
         if adapter_name and adapter_name in self.adapters:
             out = out + self.adapters[adapter_name](x)
         return out
 
-    def forward_batch(self, x_batch, adapter_names):
+    def forward_batch(self, x_batch: torch.Tensor, adapter_names: torch.Tensor):
         """batch 混合：不同样本用不同 adapter。"""
         outputs = []
         for x, name in zip(x_batch, adapter_names):

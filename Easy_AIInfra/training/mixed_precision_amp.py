@@ -24,8 +24,8 @@ import torch.nn as nn
 class AMPScaler:
     """动态 loss scaling，模拟 torch.cuda.amp.GradScaler。"""
 
-    def __init__(self, init_scale=2.0**16, growth_factor=2.0, backoff_factor=0.5,
-                 growth_interval=2000):
+    def __init__(self, init_scale: float = 2.0 ** 16, growth_factor: float = 2.0,
+                 backoff_factor: float = 0.5, growth_interval: int = 2000):
         self.scale = init_scale
         self.backoff_factor = backoff_factor
         self.growth_factor = growth_factor
@@ -35,7 +35,7 @@ class AMPScaler:
     def scale_loss(self, loss: torch.Tensor) -> torch.Tensor:
         return loss * self.scale
 
-    def unscale_(self, grads):
+    def unscale_(self, grads: torch.Tensor):
         """原地 grad /= scale；若发现 inf/nan 返回 True（溢出）。"""
         overflow = False
         for grad in grads:
@@ -46,7 +46,7 @@ class AMPScaler:
                 overflow = True
         return overflow
 
-    def step(self, optimizer, grads):
+    def step(self, optimizer, grads: torch.Tensor):
         """检测溢出 -> 跳过更新、scale *= backoff；否则更新 + 可能增长 scale。"""
         if self.unscale_(grads):
             self.scale *= self.backoff_factor

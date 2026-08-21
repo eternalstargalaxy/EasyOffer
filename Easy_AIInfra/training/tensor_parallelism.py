@@ -26,7 +26,7 @@ import torch.nn.functional as F
 class ColumnParallelLinear(nn.Module):
     """W 按输出维切：本卡持 W_i [in_dim, out_dim/N]，输出 [B, out_dim/N]"""
 
-    def __init__(self, in_dim, out_dim, tp_size, rank):
+    def __init__(self, in_dim: int, out_dim: int, tp_size: int, rank: int):
         super().__init__()
         assert out_dim % tp_size == 0
         self.out_dim_local = out_dim // tp_size
@@ -40,7 +40,7 @@ class ColumnParallelLinear(nn.Module):
 class RowParallelLinear(nn.Module):
     """W 按输入维切：本卡持 W_i [in_dim/N, out_dim]，输入 [B, in_dim/N]，输出需 all-reduce"""
 
-    def __init__(self, in_dim, out_dim, tp_size, rank):
+    def __init__(self, in_dim: int, out_dim: int, tp_size: int, rank: int):
         super().__init__()
         assert in_dim % tp_size == 0
         self.in_dim_local = in_dim // tp_size
@@ -54,7 +54,7 @@ class RowParallelLinear(nn.Module):
             partial = self._all_reduce(partial)
         return partial + self.bias
 
-    def _all_reduce(self, t):
+    def _all_reduce(self, t: torch.Tensor):
         """单机模拟：直接返回（多卡时用 dist.all_reduce）。"""
         return t
 
@@ -62,12 +62,12 @@ class RowParallelLinear(nn.Module):
 class TPMLP(nn.Module):
     """ColumnParallelLinear -> GeLU -> RowParallelLinear，全程一次 all-reduce"""
 
-    def __init__(self, dim, hidden, tp_size, rank):
+    def __init__(self, dim: int, hidden: int, tp_size: int, rank: int):
         super().__init__()
         self.fc1 = ColumnParallelLinear(dim, hidden, tp_size, rank)
         self.fc2 = RowParallelLinear(hidden, dim, tp_size, rank)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         h = self.fc1(x)
         h = F.gelu(h)
         return self.fc2(h)
@@ -76,7 +76,7 @@ class TPMLP(nn.Module):
 class VocabParallelEmbedding(nn.Module):
     """按 vocab 维切 embedding，前向按 token 路由到持有该 vocab 段的卡。"""
 
-    def __init__(self, vocab_size, dim, tp_size, rank):
+    def __init__(self, vocab_size: int, dim: int, tp_size: int, rank: int):
         super().__init__()
         assert vocab_size % tp_size == 0
         self.vocab_local = vocab_size // tp_size
@@ -94,7 +94,7 @@ class VocabParallelEmbedding(nn.Module):
             out = self._all_reduce(out)
         return out
 
-    def _all_reduce(self, t):
+    def _all_reduce(self, t: torch.Tensor):
         return t
 
 

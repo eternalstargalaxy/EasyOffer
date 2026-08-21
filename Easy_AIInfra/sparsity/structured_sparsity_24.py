@@ -47,12 +47,12 @@ def sparse_24_linear(x: torch.Tensor, W: torch.Tensor, bias: torch.Tensor = None
 
 
 class Sparse24Linear(nn.Module):
-    def __init__(self, in_dim, out_dim):
+    def __init__(self, in_dim: int, out_dim: int):
         super().__init__()
         self.weight = nn.Parameter(torch.randn(out_dim, in_dim))
         self.bias = nn.Parameter(torch.zeros(out_dim))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         W_sparse, _ = apply_24_sparsity(self.weight)
         return torch.nn.functional.linear(x, W_sparse, self.bias)
 

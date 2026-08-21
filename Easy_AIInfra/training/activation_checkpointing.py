@@ -23,7 +23,7 @@ import torch.autograd
 
 class CheckpointFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, fn, *args):
+    def forward(ctx, fn, *args: torch.Tensor):
         ctx.fn = fn
         ctx.save_for_backward(*args)
         with torch.no_grad():
@@ -31,7 +31,7 @@ class CheckpointFunction(torch.autograd.Function):
         return outputs
 
     @staticmethod
-    def backward(ctx, *grad_outputs):
+    def backward(ctx, *grad_outputs: torch.Tensor):
         args = ctx.saved_tensors
         with torch.enable_grad():
             outputs = ctx.fn(*args)
@@ -39,12 +39,12 @@ class CheckpointFunction(torch.autograd.Function):
         return (None,) + tuple(arg.grad for arg in args)
 
 
-def checkpoint(fn, *args):
+def checkpoint(fn, *args: torch.Tensor):
     """对外接口：return CheckpointFunction.apply(fn, *args)"""
     return CheckpointFunction.apply(fn, *args)
 
 
-def selective_checkpoint(fn, preserve_fn, *args):
+def selective_checkpoint(fn, preserve_fn, *args: torch.Tensor):
     """
     selective 版：preserve_fn 决定哪些中间张量在 forward 时就保留（不重算）。
     其余按 full ckpt 重算。
@@ -65,7 +65,7 @@ if __name__ == "__main__":
             self.linear = torch.nn.Linear(10, 10)
             self.dropout = torch.nn.Dropout(0.5)
 
-        def forward(self, x):
+        def forward(self, x: torch.Tensor):
             return self.dropout(torch.relu(self.linear(x)))
 
     layer = MyLayer()

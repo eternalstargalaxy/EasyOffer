@@ -97,7 +97,7 @@ def awq_quantize(W: torch.Tensor, X: torch.Tensor, bits: int = 4, group_size: in
 class W4A16Linear(torch.nn.Module):
     """权重 4bit + group scale + AWQ channel scale 的推理线性层。"""
 
-    def __init__(self, W_int, scale, s=None):
+    def __init__(self, W_int: torch.Tensor, scale: float, s: torch.Tensor = None):
         super().__init__()
         self.register_buffer("W_int", W_int)
         self.register_buffer("scale", scale)
@@ -114,7 +114,7 @@ class W4A16Linear(torch.nn.Module):
         return F.linear(x, W_deq)
 
 
-def ppl_compare(W, X_calib, X_eval):
+def ppl_compare(W: torch.Tensor, X_calib: torch.Tensor, X_eval: torch.Tensor):
     """对比 RTN / GPTQ / AWQ 的输出 MSE。"""
     y_fp = X_eval @ W.t()
     results = {}

@@ -21,7 +21,7 @@ import torch.nn as nn
 
 
 class Mamba2SSD(nn.Module):
-    def __init__(self, d_model, d_state=16, headdim=32):
+    def __init__(self, d_model: int, d_state: int = 16, headdim: int = 32):
         super().__init__()
         self.d_model = d_model
         self.d_state = d_state
@@ -32,7 +32,7 @@ class Mamba2SSD(nn.Module):
         self.proj_C = nn.Linear(d_model, self.n_heads * d_state, bias=False)
         self.out_proj = nn.Linear(d_model, d_model)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         B, L, D = x.shape
         H, N = self.n_heads, self.d_state
         A = -torch.exp(self.proj_A(x))

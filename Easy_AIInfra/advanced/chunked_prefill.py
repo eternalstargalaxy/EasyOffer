@@ -21,23 +21,23 @@ import torch.nn.functional as F
 
 
 class SimpleLM(nn.Module):
-    def __init__(self, vocab, dim=64):
+    def __init__(self, vocab: int, dim: int = 64):
         super().__init__()
         self.embed = nn.Embedding(vocab, dim)
         self.rnn = nn.GRU(dim, dim, batch_first=True)
         self.head = nn.Linear(dim, vocab, bias=False)
 
-    def forward(self, tokens):
+    def forward(self, tokens: list):
         return self.head(self.rnn(self.embed(tokens))[0])
 
 
 class ChunkedPrefill:
-    def __init__(self, model, chunk_size=8):
+    def __init__(self, model: nn.Module, chunk_size: int = 8):
         self.model = model
         self.chunk_size = chunk_size
         self.kv_cache = []
 
-    def prefill(self, prompt_tokens):
+    def prefill(self, prompt_tokens: torch.Tensor):
         """分块 prefill：把 prompt 分成 chunk 逐块前向。"""
         tokens = prompt_tokens
         for start in range(0, len(tokens), self.chunk_size):
@@ -48,7 +48,7 @@ class ChunkedPrefill:
             self.kv_cache.append(chunk)
         return logits[0, -1]
 
-    def decode(self, token):
+    def decode(self, token: torch.Tensor):
         x = torch.tensor([[token]], dtype=torch.long)
         with torch.no_grad():
             logits = self.model(x)

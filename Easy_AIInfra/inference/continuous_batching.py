@@ -61,7 +61,7 @@ class Scheduler:
             self.running.append(req)
         return self.running
 
-    def run_step(self, batch: list, model):
+    def run_step(self, batch: list, model: nn.Module):
         """拼 padded batch 一次前向，各请求独立采样。"""
         if not batch:
             return
@@ -83,7 +83,7 @@ class Scheduler:
                 still_running.append(req)
         self.running = still_running
 
-    def run(self, model, max_steps=1000):
+    def run(self, model: nn.Module, max_steps: int = 1000):
         steps = 0
         while (self.waiting or self.running) and steps < max_steps:
             batch = self.schedule()
@@ -93,13 +93,13 @@ class Scheduler:
 
 
 class TinyLM(nn.Module):
-    def __init__(self, vocab_size, hidden=32):
+    def __init__(self, vocab_size: int, hidden: int = 32):
         super().__init__()
         self.embed = nn.Embedding(vocab_size, hidden)
         self.rnn = nn.GRU(hidden, hidden, batch_first=True)
         self.head = nn.Linear(hidden, vocab_size, bias=False)
 
-    def forward(self, tokens):
+    def forward(self, tokens: list):
         return self.head(self.rnn(self.embed(tokens))[0])
 
 

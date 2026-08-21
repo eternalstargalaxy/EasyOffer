@@ -25,7 +25,7 @@ class CUDAGraphRunner:
     适用于 decode 阶段（输入 shape 固定且小）
     """
 
-    def __init__(self, model, example_input, warmup_steps=3):
+    def __init__(self, model: nn.Module, example_input: torch.Tensor, warmup_steps: int = 3):
         self.model = model
         self.device = example_input.device
 
@@ -44,7 +44,7 @@ class CUDAGraphRunner:
         with torch.cuda.graph(self.graph):
             self.static_output = model(self.static_input)
 
-    def run(self, input_tensor):
+    def run(self, input_tensor: torch.Tensor):
         """重放 graph，只需拷贝输入到 static buffer"""
         self.static_input.copy_(input_tensor)
         self.graph.replay()

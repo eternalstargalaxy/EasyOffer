@@ -23,7 +23,7 @@ import torch.nn.functional as F
 
 
 class TransformerLayer(nn.Module):
-    def __init__(self, d_model, n_heads):
+    def __init__(self, d_model: int, n_heads: int):
         super().__init__()
         self.attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
         self.ffn = nn.Sequential(
@@ -34,7 +34,7 @@ class TransformerLayer(nn.Module):
         self.ln1 = nn.LayerNorm(d_model)
         self.ln2 = nn.LayerNorm(d_model)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         a, _ = self.attn(self.ln1(x), self.ln1(x), self.ln1(x))
         x = x + a
         x = x + self.ffn(self.ln2(x))
@@ -44,7 +44,7 @@ class TransformerLayer(nn.Module):
 class SelfSpeculativeLLM(nn.Module):
     """大模型 + early exit draft head。"""
 
-    def __init__(self, d_model, n_heads, n_layers, vocab_size, early_exit_layer):
+    def __init__(self, d_model: int, n_heads: int, n_layers: int, vocab_size: int, early_exit_layer: int):
         super().__init__()
         self.layers = nn.ModuleList([
             TransformerLayer(d_model, n_heads) for _ in range(n_layers)
@@ -53,7 +53,7 @@ class SelfSpeculativeLLM(nn.Module):
         self.draft_head = nn.Linear(d_model, vocab_size, bias=False)
         self.early_exit = early_exit_layer
 
-    def forward(self, x, use_early_exit=False):
+    def forward(self, x: torch.Tensor, use_early_exit: bool = False):
         h = x
         for i, layer in enumerate(self.layers):
             h = layer(h)
@@ -65,7 +65,7 @@ class SelfSpeculativeLLM(nn.Module):
         return full_logits
 
 
-def self_speculative_step(llm_layers, draft_head, lm_head,
+def self_speculative_step(llm_layers: list, draft_head: nn.Module, lm_head: nn.Module,
                           h: torch.Tensor, early_exit: int,
                           draft_steps: int = 3):
     """

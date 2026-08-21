@@ -55,7 +55,7 @@ def hybrid_fsdp_setup(model: nn.Module, local_rank: int,
 class CPUOffloadOptimizer:
     """CPU offload 优化器：状态在 CPU，更新时 load 到 GPU。"""
 
-    def __init__(self, params, lr=1e-3):
+    def __init__(self, params: torch.Tensor, lr: float = 1e-3):
         self.params = list(params)
         self.lr = lr
         self.cpu_m = [torch.zeros_like(p, device="cpu") for p in self.params]
@@ -78,7 +78,7 @@ class CPUOffloadOptimizer:
             p.data -= update.to(p.device)
 
 
-def cpu_offload_step(optimizer: CPUOffloadOptimizer, gpu_params, cpu_states):
+def cpu_offload_step(optimizer: CPUOffloadOptimizer, gpu_params: torch.Tensor, cpu_states: torch.Tensor):
     """CPU offload 更新一步：load state -> update -> offload。"""
     optimizer.step()
 

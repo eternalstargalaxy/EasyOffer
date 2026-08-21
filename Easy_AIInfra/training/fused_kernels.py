@@ -25,7 +25,7 @@ import torch.nn.functional as F
 def fused_adam_update(param: torch.Tensor, grad: torch.Tensor,
                       m: torch.Tensor, v: torch.Tensor,
                       step: int, lr: float = 1e-3,
-                      betas=(0.9, 0.999), eps: float = 1e-8):
+                      betas: tuple = (0.9, 0.999), eps: float = 1e-8):
     """Fused Adam：一次 kernel 完成 m/v 更新 + bias correction + param 更新。"""
     beta1, beta2 = betas
     bias1 = 1 - beta1 ** step

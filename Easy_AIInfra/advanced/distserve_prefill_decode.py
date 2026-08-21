@@ -40,7 +40,7 @@ class DistServe:
         self.decode_running = []
         self.completed = []
 
-    def prefill(self, req, model):
+    def prefill(self, req: torch.Tensor, model: nn.Module):
         x = torch.tensor([req.prompt], dtype=torch.long)
         with torch.no_grad():
             logits = model(x)
@@ -57,7 +57,7 @@ class DistServe:
             req.stage = "decode"
             self.decode_running.append(req)
 
-    def decode_step(self, model):
+    def decode_step(self, model: nn.Module):
         still = []
         for req in self.decode_running:
             x = torch.tensor([req.kv_cache[-1:]], dtype=torch.long)
@@ -72,7 +72,7 @@ class DistServe:
                 self.completed.append(req)
         self.decode_running = still
 
-    def run(self, reqs, model, max_steps=100):
+    def run(self, reqs: torch.Tensor, model: nn.Module, max_steps: int = 100):
         for r in reqs:
             self.prefill(r, model)
         self.transfer_kv()
@@ -84,13 +84,13 @@ class DistServe:
 
 
 class TinyLM(torch.nn.Module):
-    def __init__(self, vocab, hidden=32):
+    def __init__(self, vocab: int, hidden: int = 32):
         super().__init__()
         self.embed = torch.nn.Embedding(vocab, hidden)
         self.rnn = torch.nn.GRU(hidden, hidden, batch_first=True)
         self.head = torch.nn.Linear(hidden, vocab, bias=False)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return self.head(self.rnn(self.embed(x))[0])
 
 

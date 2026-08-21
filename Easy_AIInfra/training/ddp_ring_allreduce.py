@@ -70,10 +70,10 @@ class DDP:
         self.world_size = world_size
         self.rank = rank
 
-    def forward(self, *args):
+    def forward(self, *args: torch.Tensor):
         return self.model(*args)
 
-    def backward_and_sync(self, loss, all_grads: list):
+    def backward_and_sync(self, loss: torch.Tensor, all_grads: list):
         """
         loss.backward() 后梯度已就位；
         对每个 param.grad 调 ring_all_reduce，再 /= world_size 取均值。

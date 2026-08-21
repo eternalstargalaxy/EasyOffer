@@ -52,7 +52,7 @@ def schedule_gp(num_stages: int, num_microbatches: int, rank: int):
     return ops
 
 
-def dependencies(op_seq):
+def dependencies(op_seq: torch.Tensor):
     """
     标注每个 op 的前驱：
       - 同 stage 上一个 op
@@ -68,7 +68,7 @@ def dependencies(op_seq):
     return deps
 
 
-def execute(schedule_per_stage, num_stages):
+def execute(schedule_per_stage: torch.Tensor, num_stages: int):
     """
     用队列模拟各 stage 执行，打印时间线，统计气泡占比。
     """

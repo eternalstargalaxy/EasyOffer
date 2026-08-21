@@ -61,7 +61,7 @@ def per_token_quantize(activation: torch.Tensor, n_bits: int = 8):
     return q.to(torch.int8), scale
 
 
-def dequantize(q: torch.Tensor, scale, zero_point=None):
+def dequantize(q: torch.Tensor, scale: float, zero_point: torch.Tensor = None):
     """反量化：x_hat = scale * q + zero_point"""
     if zero_point is not None:
         return q.float() * scale + zero_point

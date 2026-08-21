@@ -22,7 +22,7 @@ import torch.nn.functional as F
 import math
 
 
-def flash_attention_reference(q, k, v, causal=False):
+def flash_attention_reference(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, causal: bool = False):
     """标准 attention 作为参考"""
     d_head = q.size(-1)
     scores = q @ k.transpose(-2, -1) / math.sqrt(d_head)
@@ -33,7 +33,7 @@ def flash_attention_reference(q, k, v, causal=False):
     return F.softmax(scores, dim=-1) @ v
 
 
-def flash_attention_tiled(q, k, v, block_size=64, causal=False):
+def flash_attention_tiled(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, block_size: int = 64, causal: bool = False):
     """
     分块 FlashAttention（纯 Python 模拟 Triton kernel 逻辑）
     展示 online softmax + tiling 的核心算法

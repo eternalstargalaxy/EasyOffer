@@ -22,7 +22,7 @@ import torch.nn.functional as F
 
 
 class GLALayer(nn.Module):
-    def __init__(self, d_model, num_heads=4):
+    def __init__(self, d_model: int, num_heads: int = 4):
         super().__init__()
         self.d_model = d_model
         self.num_heads = num_heads
@@ -33,7 +33,7 @@ class GLALayer(nn.Module):
         self.g_proj = nn.Linear(d_model, num_heads)
         self.out_proj = nn.Linear(d_model, d_model)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         B, L, D = x.shape
         H, Hd = self.num_heads, self.head_dim
         Q = self.q_proj(x).view(B, L, H, Hd)

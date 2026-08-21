@@ -64,13 +64,13 @@ class FSDP(nn.Module):
         """释放非本 shard 的参数副本。"""
         self._full_param = None
 
-    def forward(self, *args):
+    def forward(self, *args: torch.Tensor):
         self._all_gather_full_param()
         result = self.module(*args)
         self._release_non_shard()
         return result
 
-    def backward_step(self, loss):
+    def backward_step(self, loss: torch.Tensor):
         """
         loss.backward() 后：
           1. reduce-scatter 梯度得本 shard 梯度

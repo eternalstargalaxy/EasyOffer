@@ -93,7 +93,7 @@ def medusa_verify(target_logits: torch.Tensor, candidate_tokens: list,
     return accepted
 
 
-def medusa_decode(llm, medusa: MedusaModel, lm_head, h: torch.Tensor,
+def medusa_decode(llm: nn.Module, medusa: MedusaModel, lm_head: nn.Module, h: torch.Tensor,
                   max_new: int = 10, temperature: float = 1.0):
     """完整 Medusa 解码循环。"""
     tokens = []
