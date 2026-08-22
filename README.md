@@ -65,6 +65,18 @@ REINFORCE（基础策略梯度）、A2C（Actor-Critic）、PPO（RLHF 经典）
 
 ---
 
+## 📊 代码质量
+
+| 指标 | 状态 |
+|------|------|
+| `.py` 文件背景/考察点/测试 | **75/75** (100%) |
+| `.ipynb` 文件背景/考察点/测试 | **38/38** (100%) |
+| `.ipynb` 函数 type hints | **144/144** (100%) |
+| `.py` 函数 type hints + return hints | **~200+** (Easy_AIInfra 46 文件全覆盖) |
+| 语法错误 | **0** |
+
+---
+
 ## 🚧 未来计划
 - LLaMA / Qwen 等更多模型完整手写
 - 更多 Infra 优化（CUDA kernel、序列并行）
