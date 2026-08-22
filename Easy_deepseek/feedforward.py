@@ -1,6 +1,10 @@
 """
 前馈网络模块 - 实现Transformer块中的MLP层。
 该模块提供具有门控机制的前馈网络实现，在模型中用于非线性特征转换。
+
+
+背景：FFN 前馈网络
+考察点：SwiGLU 激活、3 个投影矩阵、hidden_dim 对齐
 """
 
 import torch

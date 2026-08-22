@@ -1,6 +1,10 @@
 """
 线性层模块 - 实现各种类型的线性变换层。
 该模块提供标准线性层、行/列并行线性层、嵌入层以及归一化层的实现。
+
+
+背景：线性层与 RMSNorm
+考察点：ColumnParallel/RowParallel Linear、RMSNorm 实现
 """
 
 import torch

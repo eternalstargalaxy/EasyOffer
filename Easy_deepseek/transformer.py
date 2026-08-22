@@ -1,6 +1,10 @@
 """
 Transformer模型模块 - 组合所有组件构建完整的Transformer架构。
 该模块整合嵌入层、Transformer块和输出层，提供完整的模型前向传播逻辑。
+
+
+背景：Transformer 模型
+考察点：层堆叠、KV Cache、前向传播
 """
 
 import torch

@@ -1,6 +1,10 @@
 """
 配置模块 - 存储Transformer模型的所有配置参数和超参数。
 该模块为整个模型架构提供中心化的配置管理。
+
+
+背景：DeepSeek-V2 模型配置
+考察点：dataclass 配置管理、MoE/MLA 参数
 """
 
 from dataclasses import dataclass

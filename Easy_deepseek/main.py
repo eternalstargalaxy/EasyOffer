@@ -1,6 +1,10 @@
 """
 主模块 - 组装所有组件并提供使用示例。
 该模块展示如何初始化和使用Transformer模型进行推理和生成。
+
+
+背景：DeepSeek-V2 完整模型
+考察点：Transformer 堆叠、MoE 路由、生成推理
 """
 
 import os

@@ -1,6 +1,10 @@
 """
 旋转位置编码模块 - 实现RoPE(Rotary Position Embedding)技术。
 该模块提供位置信息的编码方法，使模型能感知序列中token的相对位置关系。
+
+
+背景：RoPE 旋转位置编码
+考察点：频率计算、复数旋转、apply_rotary_emb
 """
 
 import math

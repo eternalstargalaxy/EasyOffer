@@ -1,6 +1,10 @@
 """
 Transformer块模块 - 实现Transformer架构的核心计算单元。
 该模块将注意力层和前馈网络组合为完整的Transformer块，构成模型的基本处理单元。
+
+
+背景：Transformer Block
+考察点：Pre-Norm、Attention+FFN 残差连接
 """
 
 from torch import nn
